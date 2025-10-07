@@ -1,0 +1,97 @@
+---
+title: "AssetAllocation"
+author: "Nikolaj Andreasen"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Pakker
+```{r}
+library(tidyverse)
+library(frenchdata)
+library(ggplot2)
+```
+
+# Loading data
+```{r}
+data_sets = get_french_data_list() # All the datasets in the package
+
+# Nr 1 er månedlige returns
+# Nr 2 er årlige returns
+ff_3_factors <- download_french_data("Fama/French 3 Factors") # Download of data
+# f_3_factors$subsets$data[[2]] # How to extract dataset
+
+
+size_mom_6 <- download_french_data("6 Portfolios Formed on Size and Momentum (2 x 3)")
+size_mom_25 <- download_french_data("25 Portfolios Formed on Size and Momentum (5 x 5)")
+size_mom_6_euro <- download_french_data("6 European Portfolios Formed on Size and Momentum (2 x 3)")
+size_mom_25_euro <- download_french_data("25 European Portfolios Formed on Size and Momentum (5 x 5)")
+
+exchange_rate <- read_csv("Data AA/eurofxref-hist.csv") # Tror det er valutakurser 
+```
+
+# Visualisering
+## farma and french 3 factor
+```{r}
+# 1 er månedlig
+# 2 er årlig
+# Hvis månedlig skal mutate(date = ym(date)) være med
+ff_3_factors$subsets$data[[1]] %>%
+  mutate(date = ym(date)) %>% 
+  pivot_longer(cols = -date,
+               names_to = "factor",
+               values_to = "value") %>%
+  ggplot(data = .,
+         mapping = aes(x = date, y = value,
+                       group = factor,
+                       color = factor)) +
+  geom_line() +
+  facet_wrap(~factor, scales = "free")
+
+# histogram
+ff_3_factors$subsets$data[[1]] %>%
+  mutate(date = ym(date)) %>% 
+  pivot_longer(cols = -date,
+               names_to = "factor",
+               values_to = "value") %>%
+  ggplot(data = .,
+         mapping = aes(y = value,
+                       group = factor,
+                       fill = factor)) +
+  geom_histogram(color = "white") +
+  facet_wrap(~factor, scales = "free") +
+  coord_flip()
+```
+
+## size og momentum for 6 portføljer USA
+```{r}
+size_mom_6$subsets$data[[1]] %>% 
+  mutate(date = ym(date)) %>% 
+  pivot_longer(cols = -date,
+               names_to = "type",
+               values_to = "value") %>% 
+  ggplot(data = .,
+         aes(x = date, y = value,
+             group = type,
+             color = type)) +
+  geom_line() +
+  facet_wrap(~type, scales = "free")
+
+# histogram
+size_mom_6$subsets$data[[1]] %>% 
+  pivot_longer(cols = -date,
+               names_to = "type",
+               values_to = "value") %>% 
+  ggplot(data = .,
+         aes(y = value,
+             group = type,
+             fill = type)) +
+  geom_histogram(color = "white") +
+  facet_wrap(~type, scales = "free") +
+  coord_flip()
+```
+
