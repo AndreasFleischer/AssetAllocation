@@ -112,6 +112,7 @@ size_mom_6$subsets$data[[1]] %>%
 ### i)
 ```{r}
 size_mom_6$subsets$name # De forskellige datasets
+size_mom_6$subsets$data[2]
 
 
 # Plot af de forskellige dataset i size_mom_6
@@ -155,8 +156,6 @@ colSums(total_returns_6[,-1])/10^6
 
 # gennemsnitlige firm size i perioden
 colMeans(filter(size_mom_6$subsets$data[[6]], date >= 200409)[, 2:length(filter(size_mom_6$subsets$data[[6]], date >= 200409))])
-
-13.65303      67.35745      96.60903     274.06578     812.65279     543.42334 
 
 ```
 
@@ -311,7 +310,31 @@ colSums(total_returns_6_euro)/10^6
 USD_RF <- ff_3_factors$subsets$data[[1]][,c("date","RF")] %>%
   filter(date >= 200409)
 
-USD_RF[(200):252,]$RF
-RF_eom[1:8,]$RF_1m*100
+ff_3_factors$subsets$data
+```
+
+# Time-series regression US-US
+```{r}
+y.df <- size_mom_6$subsets$data[[2]] %>% 
+  filter(date >= 200409) %>%
+  select(c("date","SMALL LoPRIOR"))
+x.df <- ff_3_factors$subsets$data[[1]] %>%
+  filter(date >= 200409)
+
+MOM.df <- size_mom_6$subsets$data[[2]] %>%
+  filter(date >= 200409) %>% 
+  mutate(MOM = 1/2 * (`SMALL HiPRIOR` + `BIG HiPRIOR`) - 1/2 * (`BIG LoPRIOR` + `SMALL LoPRIOR`))
+
+reg.df <- left_join(y.df,x.df, by = "date") %>%
+  mutate(excess_R = `SMALL LoPRIOR` - RF,
+         excess_MKT = `Mkt-RF`,
+         MOM = MOM.df$MOM)
+
+ff_model <- lm(excess_R ~ excess_MKT + SMB + MOM, data = reg.df)
+library(lmtest)
+library(sandwich)
+summary(ff_model)
+coeftest(ff_model, vcov = NeweyWest(ff_model, lag = 3))
+
 ```
 
