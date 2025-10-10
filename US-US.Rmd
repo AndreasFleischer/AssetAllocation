@@ -1,0 +1,84 @@
+---
+title: "USA-USA"
+author: "Andreas Fleischer"
+date: "2025-10-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Pakker
+```{r}
+library(readr)
+library(tidyverse)
+library(frenchdata)
+library(ggplot2)
+library(lubridate)
+```
+
+# Data
+```{r message=FALSE, warning=FALSE}
+data_sets = get_french_data_list() # All the datasets in the package
+
+
+# US stocks
+# Nr 1 er månedlige returns
+# Nr 2 er årlige returns
+ff_3_factors <- download_french_data("Fama/French 3 Factors") # Download of data
+# f_3_factors$subsets$data[[2]] # How to extract dataset
+# browse_details_page(ff_3_factors) # Details of the dataset
+
+
+size_mom_6 <- download_french_data("6 Portfolios Formed on Size and Momentum (2 x 3)")
+size_mom_25 <- download_french_data("25 Portfolios Formed on Size and Momentum (5 x 5)")
+
+
+# EU stocks in US dollars
+size_mom_6_euro <- download_french_data("6 European Portfolios Formed on Size and Momentum (2 x 3)")
+size_mom_25_euro <- download_french_data("25 European Portfolios Formed on Size and Momentum (5 x 5)")
+
+# Other
+setwd("/Users/andreas/Documents/Uni/5. År/Asset Allocation (PUK)")
+exchange_rate <- read_csv("GitHub/AssetAllocation/Data AA/eurofxref-hist.csv") # Tror det er valutakurser
+# Yield_curve_1_year <- read_csv("Data AA/Yield curve 1 year.csv")
+# Yield_curve <- read_csv("Data AA/Yield curve full.csv")
+```
+
+# US-US (MKT)
+```{r}
+true_factors <- ff_3_factors$subsets$data[[1]] %>% filter(date >= 200409)
+avg_vw_returns <- size_mom_6$subsets$data[[1]] %>% filter(date >= 200409)
+number_firms <- size_mom_6$subsets$data[[5]] %>% filter(date >= 200409)
+avg_market_cap <- size_mom_6$subsets$data[[6]] %>% filter(date >= 200409)
+
+total_returns <- data.frame(date = number_firms$date,
+                            avg_vw_returns[,-1]*number_firms[,-1]*avg_market_cap[-1]*1/100)
+total_values <- data.frame(date = number_firms$date,
+                            number_firms[,-1]*avg_market_cap[-1])
+total_market_value <- rowSums(total_values[,-1])
+MKT_US <- data.frame(date = number_firms$date,
+                     Mkt = rowSums(avg_vw_returns[,-1]*total_values[,-1])/total_market_value)
+
+true_factors$`Mkt-RF`-round(MKT_US$Mkt,2)
+```
+# US-US (SMB)
+```{r}
+SMB_values <- rowMeans(avg_vw_returns[, 2:4]) - rowMeans(avg_vw_returns[, 5:7])
+SMB_US <- data.frame(date = number_firms$date,
+                     SMB = round(SMB_values,2))
+
+SMB_US$SMB-true_factors$SMB
+```
+# US-US (MOM)
+```{r}
+MOM_values <- rowMeans(avg_vw_returns[,c(4,7)]) - rowMeans(avg_vw_returns[,c(2,5)])
+MOM_US <- data.frame(date = number_firms$date,
+                     MOM = round(MOM_values,2))
+
+MOM_US$MOM
+```
+
+
+
