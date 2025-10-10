@@ -14,12 +14,15 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(frenchdata)
 library(ggplot2)
+library(lubridate)
+library(lmtest)
+library(sandwich)
 ```
 
 # Loading data
 ```{r}
 data_sets = get_french_data_list() # All the datasets in the package
-
+view(data_sets)
 
 # US stocks
 # Nr 1 er månedlige returns
@@ -31,7 +34,6 @@ ff_3_factors <- download_french_data("Fama/French 3 Factors") # Download of data
 
 size_mom_6 <- download_french_data("6 Portfolios Formed on Size and Momentum (2 x 3)")
 size_mom_25 <- download_french_data("25 Portfolios Formed on Size and Momentum (5 x 5)")
-browse_details_page(size_mom_25_euro)
 
 # EU stocks in US dollars
 size_mom_6_euro <- download_french_data("6 European Portfolios Formed on Size and Momentum (2 x 3)")
@@ -41,7 +43,21 @@ size_mom_25_euro <- download_french_data("25 European Portfolios Formed on Size 
 exchange_rate <- read_csv("Data AA/eurofxref-hist.csv") # Tror det er valutakurser
 # Yield_curve_1_year <- read_csv("Data AA/Yield curve 1 year.csv")
 # Yield_curve <- read_csv("Data AA/Yield curve full.csv")
+
+
+filter_data <- function(data, annual = FALSE){
+  if(annual){
+    data <- filter(data, date >= 2004)
+  } else{
+    data <- filter(data, date >= 200409)
+  }
+  return(data)
+}
+
+
 ```
+
+
 
 
 # Visualisering
@@ -131,9 +147,10 @@ filter(size_mom_6$subsets$data[[k]], date >= 200409) %>%
 # r er Average Value Weighted Returns -- Monthly
 # n er Number of Firms in Portfolios
 # a er Average Firm Size (market cap)
-r <- filter(size_mom_6$subsets$data[[1]], date >= 200409)[,2:ncol(size_mom_6$subsets$data[[1]])]
-n <- filter(size_mom_6$subsets$data[[5]], date >= 200409)[,2:ncol(size_mom_6$subsets$data[[5]])]
-a <- filter(size_mom_6$subsets$data[[6]], date >= 200409)[,2:ncol(size_mom_6$subsets$data[[6]])]
+r <- filter(size_mom_25$subsets$data[[1]], date >= 200409)[,-1]
+r.e <- filter(size_mom_25$subsets$data[[2]], date >= 200409)[,-1]
+n <- filter(size_mom_25$subsets$data[[5]], date >= 200409)[,-1]
+a <- filter(size_mom_25$subsets$data[[6]], date >= 200409)[,-1]
 
 total_returns_6 <- tibble(date = size_mom_6$subsets$data[[1]]$date, r*n*a)
 total_returns_6 %>% 
@@ -149,7 +166,61 @@ total_returns_6 %>%
 
 # gennemsnitlige firm size i perioden
 colMeans(filter(size_mom_6$subsets$data[[6]], date >= 200409)[, 2:length(filter(size_mom_6$subsets$data[[6]], date >= 200409))])
+n
+r.e
+w <- a*n/rowSums(a*n)
+rowSums(r*w)
 
+hist(round(round(rowSums(r*w), 2)-(ff_3_factors$subsets$data[[1]] %>% filter(date >= 200409))$`Mkt-RF`+(ff_3_factors$subsets$data[[1]] %>% filter(date >= 200409))$RF, 2))
+```
+
+# US-US
+```{r}
+size_mom_25
+calc_factors <- function(data_matrix, annual = FALSE){
+  date_df <- filter_data(data_matrix$subsets$data[[1]], annual)[,1]
+  returns <- filter_data(data_matrix$subsets$data[[1]], annual)[,-1]
+  nfirms <- filter_data(data_matrix$subsets$data[[5]], annual)[,-1]
+  market_cap <- filter_data(data_matrix$subsets$data[[6]], annual)[,-1]
+  w <- nfirms*market_cap/(rowSums(nfirms*market_cap))
+  Mkt <- rowSums(returns*w)
+  SMB <- rowMeans(returns[1:3]) - rowMeans(returns[4:6])
+  MOM <- rowMeans(returns[c(3, 6)]) - rowMeans(returns[c(1, 4)])
+  df <- tibble(date_df, "Mkt" = Mkt, "SMB" = SMB, "MOM" = MOM)
+  return(df)
+}
+
+
+US_factors <- calc_factors(size_mom_6)
+
+y.df <- size_mom_6$subsets$data[[1]] %>% 
+  filter(date >= 200409) %>%
+  select(c("date","SMALL LoPRIOR"))
+x.df <- ff_3_factors$subsets$data[[1]] %>%
+  filter(date >= 200409)
+
+MOM.df <- size_mom_6$subsets$data[[1]] %>%
+  filter(date >= 200409) %>% 
+  mutate(MOM = 1/2 * (`SMALL HiPRIOR` + `BIG HiPRIOR`) - 1/2 * (`BIG LoPRIOR` + `SMALL LoPRIOR`))
+
+reg.df <- left_join(y.df,x.df, by = "date") %>%
+  mutate(excess_R = `SMALL LoPRIOR` - RF,
+         excess_MKT = `Mkt-RF`,
+         MOM = MOM.df$MOM)
+
+ff_model <- lm(excess_R ~ excess_MKT + SMB + MOM, data = reg.df)
+library(lmtest)
+library(sandwich)
+summary(ff_model)
+coeftest(ff_model, vcov = NeweyWest(ff_model, lag = 3))
+
+# testing oue factors
+t.test(US_factors$MOM)
+reg_df <- US_factors
+reg_df$"returns" = filter_data(size_mom_6$subsets$data[[1]])$"BIG HiPRIOR"
+model_US <- lm(data = reg_df, formula = returns ~ Mkt + SMB + MOM)
+summary(model_US)
+coeftest(model_US, vcov = NeweyWest(model_US, lag = 3))
 ```
 
 
