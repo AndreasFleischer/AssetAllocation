@@ -1,0 +1,47 @@
+---
+title: "Constructing EU RF"
+author: "Andreas Fleischer"
+date: "2025-10-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Pakker
+```{r}
+library(readr)
+library(tidyverse)
+library(frenchdata)
+library(ggplot2)
+library(lubridate)
+```
+
+# Data
+```{r}
+setwd("/Users/andreas/Documents/Uni/5. År/Asset Allocation (PUK)")
+Current_year <- read_csv("Current_year.csv") %>%
+  filter(DATA_TYPE_FM %in% c("BETA0","BETA1","BETA2","BETA3","TAU1","TAU2"))
+```
+# Svensson
+```{r}
+Current_year <- Current_year %>%
+  select(TIME_PERIOD, DATA_TYPE_FM, OBS_VALUE) %>%
+  pivot_wider(names_from = DATA_TYPE_FM, values_from = OBS_VALUE)
+
+# Time to maturity (in years)
+TTM <- 1/12
+
+# Compute z(1/12) using the Nelson–Siegel–Svensson formula
+Current_year <- Current_year %>%
+  mutate(
+    z_1m = BETA0 +
+      BETA1 * ((1 - exp(-TTM / TAU1)) / (TTM / TAU1)) +
+      BETA2 * ((1 - exp(-TTM / TAU1)) / (TTM / TAU1) - exp(-TTM / TAU1)) +
+      BETA3 * ((1 - exp(-TTM / TAU2)) / (TTM / TAU2) - exp(-TTM / TAU2))
+  )
+```
+
+
+
