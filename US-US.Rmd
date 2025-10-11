@@ -62,6 +62,7 @@ MKT_US <- data.frame(date = number_firms$date,
                      Mkt = rowSums(avg_vw_returns[,-1]*total_values[,-1])/total_market_value)
 
 true_factors$`Mkt-RF`-round(MKT_US$Mkt,2)
+t.test(MKT_US$Mkt)
 ```
 # US-US (SMB)
 ```{r}
@@ -77,8 +78,96 @@ MOM_values <- rowMeans(avg_vw_returns[,c(4,7)]) - rowMeans(avg_vw_returns[,c(2,5
 MOM_US <- data.frame(date = number_firms$date,
                      MOM = round(MOM_values,2))
 
-MOM_US$MOM
+mean(MOM_US$MOM)
 ```
 
+# EUR-US (MKT)
+```{r}
+EUR_USD <- exchange_rate %>%
+  filter(as.Date(Date) >= as.Date("2004-08-01")) %>%
+  select(Date, USD) %>%
+  mutate(Date = as.Date(Date)) %>%
+  group_by(year = year(Date), month = month(Date)) %>%
+  slice_max(Date, n = 1) %>%   # last date in each month
+  ungroup() %>%
+  arrange(Date)
+EUR_USD <- EUR_USD[1:253,]
+EUR_USD$return <- lag(EUR_USD$USD)/EUR_USD$USD-1
+EUR_USD <- EUR_USD[2:253,]
 
+avg_vw_returns_eu <- (1+avg_vw_returns[,-1]/100)*(1+EUR_USD$return)-1
+avg_vw_returns_eu <- avg_vw_returns_eu*100
+
+total_values <- number_firms[,-1] * avg_market_cap[,-1]  
+total_market_value <- rowSums(total_values)
+
+total_returns_eu <- data.frame(
+  date = number_firms$date,
+  avg_vw_returns_eu * total_values / 100)
+
+MKT_EU_US <- data.frame(
+  date = number_firms$date,
+  Mkt = rowSums(avg_vw_returns_eu * total_values) / total_market_value)
+
+t.test(MKT_EU_US$Mkt)
+```
+# EUR-US (SMB)
+```{r}
+SMB_values_eu <- rowMeans(avg_vw_returns_eu[, 1:3]) - rowMeans(avg_vw_returns_eu[, 4:6])
+SMB_EU_US <- data.frame(date = number_firms$date,
+                     SMB = round(SMB_values_eu,2))
+t.test(SMB_EU_US$SMB)
+```
+# EUR-US (MOM)
+```{r}
+MOM_values_eu <- rowMeans(avg_vw_returns_eu[,c(3,6)]) - rowMeans(avg_vw_returns_eu[,c(1,4)])
+MOM_EU_US <- data.frame(date = number_firms$date,
+                     MOM = round(MOM_values_eu,2))
+
+t.test(MOM_EU_US$MOM)
+```
+# EUR-EU
+```{r}
+avg_vw_returns_euro <- size_mom_6_euro$subsets$data[[1]] %>% filter(date >= 200409)
+number_firms_euro <- size_mom_6_euro$subsets$data[[5]] %>% filter(date >= 200409)
+avg_market_cap_euro <- size_mom_6_euro$subsets$data[[6]] %>% filter(date >= 200409)
+
+total_values_euro <- number_firms_euro[,-1] * avg_market_cap_euro[,-1]
+total_market_value_euro <- rowSums(total_values_euro)
+
+avg_vw_returns_euro_eur <- ((1 + avg_vw_returns_euro[,-1]/100) * (1 + EUR_USD$return) - 1) * 100
+
+MKT_EU_EU <- data.frame(
+  date = number_firms_euro$date,  
+  Mkt  = rowSums(avg_vw_returns_euro_eur * total_values_euro) /
+         total_market_value_euro)
+t.test(MKT_EU_EU$Mkt)
+```
+# EUR-EU (SMB)
+```{r}
+SMB_values_eur_eur <- rowMeans(avg_vw_returns_euro_eur[, 1:3]) - 
+                      rowMeans(avg_vw_returns_euro_eur[, 4:6])
+
+SMB_EU_EU <- data.frame(
+  date = number_firms_euro$date,  
+  SMB  = round(SMB_values_eur_eur, 2)
+)
+t.test(SMB_EU_EU$SMB)
+```
+# EUR-EU (MOM)
+```{r}
+MOM_values_eur_eur <- rowMeans(avg_vw_returns_euro_eur[, c(3,6)]) -
+                      rowMeans(avg_vw_returns_euro_eur[, c(1,4)])
+
+MOM_EU_EU <- data.frame(
+  date = number_firms_euro$date,  
+  MOM  = round(MOM_values_eur_eur, 2)
+)
+
+t.test(MOM_EU_EU$MOM)
+```
+# Creation of EU RF
+```{r}
+
+```
 
