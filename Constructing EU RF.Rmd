@@ -18,15 +18,21 @@ library(ggplot2)
 library(lubridate)
 ```
 
-# Data
+# Data and construction
 ```{r}
 setwd("/Users/andreas/Documents/Uni/5. År/Asset Allocation (PUK)")
-Current_year <- read_csv("Current_year.csv") %>%
+All_years <- read_csv("All_years.csv") %>%
   filter(DATA_TYPE_FM %in% c("BETA0","BETA1","BETA2","BETA3","TAU1","TAU2"))
-```
-# Svensson
-```{r}
-Current_year <- Current_year %>%
+
+All_years <- All_years %>%
+  filter(as.Date(TIME_PERIOD) >= as.Date("2004-07-01")) %>%
+  mutate(Date = as.Date(TIME_PERIOD)) %>% 
+  group_by(year = year(Date), month = month(Date), DATA_TYPE_FM) %>%
+  slice_max(Date, n = 1) %>%      
+  ungroup() %>%
+  arrange(Date)
+
+All_years <- All_years %>%
   select(TIME_PERIOD, DATA_TYPE_FM, OBS_VALUE) %>%
   pivot_wider(names_from = DATA_TYPE_FM, values_from = OBS_VALUE)
 
@@ -34,13 +40,16 @@ Current_year <- Current_year %>%
 TTM <- 1/12
 
 # Compute z(1/12) using the Nelson–Siegel–Svensson formula
-Current_year <- Current_year %>%
+All_years <- All_years %>%
   mutate(
     z_1m = BETA0 +
       BETA1 * ((1 - exp(-TTM / TAU1)) / (TTM / TAU1)) +
       BETA2 * ((1 - exp(-TTM / TAU1)) / (TTM / TAU1) - exp(-TTM / TAU1)) +
-      BETA3 * ((1 - exp(-TTM / TAU2)) / (TTM / TAU2) - exp(-TTM / TAU2))
+      BETA3 * ((1 - exp(-TTM / TAU2)) / (TTM / TAU2) - exp(-TTM / TAU2)),
+    return = exp(z_1m/12)-1
   )
+All_years$return
+saveRDS(All_years, "All_years_ready.rds")
 ```
 
 
