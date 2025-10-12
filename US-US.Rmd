@@ -69,7 +69,7 @@ summary(lm((MKT_US$Mkt[1:244]-true_factors$RF[1:244])~1))$coefficients*c(1,sqrt(
 ```{r}
 SMB_values <- rowMeans(avg_vw_returns[, 2:4]) - rowMeans(avg_vw_returns[, 5:7])
 SMB_US <- data.frame(date = number_firms$date,
-                     SMB = round(SMB_values,2))
+                     SMB = SMB_values)
 
 SMB_US$SMB-true_factors$SMB
 summary(lm(SMB_US$SMB[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
@@ -78,7 +78,7 @@ summary(lm(SMB_US$SMB[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
 ```{r}
 MOM_values <- rowMeans(avg_vw_returns[,c(4,7)]) - rowMeans(avg_vw_returns[,c(2,5)])
 MOM_US <- data.frame(date = number_firms$date,
-                     MOM = round(MOM_values,2))
+                     MOM = MOM_values)
 
 summary(lm(MOM_US$MOM[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
 ```
@@ -118,7 +118,7 @@ summary(lm(MKT_EU_US$Mkt[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
 ```{r}
 SMB_values_eu <- rowMeans(avg_vw_returns_eu[, 1:3]) - rowMeans(avg_vw_returns_eu[, 4:6])
 SMB_EU_US <- data.frame(date = number_firms$date,
-                     SMB = round(SMB_values_eu,2))
+                     SMB = SMB_values_eu)
 t.test(SMB_EU_US$SMB)
 summary(lm(SMB_EU_US$SMB[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
 ```
@@ -126,7 +126,7 @@ summary(lm(SMB_EU_US$SMB[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
 ```{r}
 MOM_values_eu <- rowMeans(avg_vw_returns_eu[,c(3,6)]) - rowMeans(avg_vw_returns_eu[,c(1,4)])
 MOM_EU_US <- data.frame(date = number_firms$date,
-                     MOM = round(MOM_values_eu,2))
+                     MOM = MOM_values_eu)
 
 t.test(MOM_EU_US$MOM)
 summary(lm(MOM_EU_US$MOM[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
@@ -206,10 +206,10 @@ summary(lm(excess_portfolios_us[,5]~reg_data_us$MKTmRF+reg_data_us$SMB+reg_data_
 summary(lm(excess_portfolios_us[,6]~reg_data_us$MKTmRF+reg_data_us$SMB+reg_data_us$MOM))
 ```
 
-# Time-series regression (EU-US)
+# Time-series regression on 5x5 (EU-US)
 ```{r}
 # Make new FF factor df
-reg_data_eu <- data.frame(
+reg_data_us <- data.frame(
   date = MKT_EU_US$date,
   MKTmRF = MKT_EU_US$Mkt,
   SMB = SMB_EU_US$SMB,
@@ -217,30 +217,59 @@ reg_data_eu <- data.frame(
   filter(date <= 202412) %>%
   mutate(MKTmRF = MKTmRF - All_years$return,
          RF = All_years$return)
+# Add the 5x5 data
+avg_vw_returns_eu25 <- size_mom_25$subsets$data[[1]] %>% filter(date >= 200409)
+avg_vw_returns_eu25 <- (1+avg_vw_returns_eu25[,-1]/100)*(1+EUR_USD$return)-1
+avg_vw_returns_eu25 <- avg_vw_returns_eu25*100
 
 # Add the portfolios
-reg_data <- cbind(
-  reg_data,
-  avg_vw_returns_eu[1:244,])
+reg_data_us <- cbind(
+  reg_data_us,
+  avg_vw_returns_eu25[1:244,])
 
 # Excess portfolios, R-RF
-excess_portfolios_eu <- avg_vw_returns_eu[1:244,] - reg_data_eu$RF
+excess_portfolios_us <- avg_vw_returns_eu25[1:244,] - reg_data_us$RF
 
-# Regressions for each portfolio
-summary(lm(excess_portfolios_eu[,1]~reg_data_eu$MKTmRF+reg_data_eu$SMB+reg_data_eu$MOM))
-summary(lm(excess_portfolios_eu[,2]~reg_data_eu$MKTmRF+reg_data_eu$SMB+reg_data_eu$MOM))
-summary(lm(excess_portfolios_eu[,3]~reg_data_eu$MKTmRF+reg_data_eu$SMB+reg_data_eu$MOM))
-summary(lm(excess_portfolios_eu[,4]~reg_data_eu$MKTmRF+reg_data_eu$SMB+reg_data_eu$MOM))
-summary(lm(excess_portfolios_eu[,5]~reg_data_eu$MKTmRF+reg_data_eu$SMB+reg_data_eu$MOM))
-summary(lm(excess_portfolios_eu[,6]~reg_data_eu$MKTmRF+reg_data_eu$SMB+reg_data_eu$MOM))
+# The regressions
+ff25_results <- map_dfr(
+  names(excess_portfolios_us),
+  ~ {
+    model <- lm(excess_portfolios_us[[.x]] ~ reg_data_us$MKTmRF + reg_data_us$SMB + reg_data_us$MOM)
+    tidy(model) %>%
+      mutate(
+        Portfolio = .x,
+        t_stat = estimate / std.error
+      ) %>%
+      select(Portfolio, term, estimate, t_stat)
+  }
+)
 
+# Arrange nicely
+ff25_results <- ff25_results %>%
+  mutate(term = recode(term,
+                       "(Intercept)" = "Alpha",
+                       "reg_data_eu$MKTmRF" = "MKT",
+                       "reg_data_eu$SMB" = "SMB",
+                       "reg_data_eu$MOM" = "MOM")) %>%
+  arrange(Portfolio, match(term, c("Alpha", "MKT", "SMB", "MOM")))
+
+# (Optional) Pivot wider for a report-style table
+ff25_table <- ff25_results %>%
+  tidyr::pivot_wider(
+    names_from = term,
+    values_from = c(estimate, t_stat),
+    names_glue = "{term}_{.value}"
+  )
+
+# View results
+ff25_table
 ```
 
 
 # Time-series regression (EU-EU)
 ```{r}
 # Make new FF factor df
-reg_data <- data.frame(
+reg_data_eu <- data.frame(
   date = MKT_EU_EU$date,
   MKTmRF = MKT_EU_EU$Mkt,
   SMB = SMB_EU_EU$SMB,
@@ -249,21 +278,52 @@ reg_data <- data.frame(
   mutate(MKTmRF = MKTmRF - All_years$return,
          RF = All_years$return)
 
+# Add the 5x5 data
+avg_vw_returns_eu25 <- size_mom_25_euro$subsets$data[[1]] %>% filter(date >= 200409)
+avg_vw_returns_eu25 <- (1+avg_vw_returns_eu25[,-1]/100)*(1+EUR_USD$return)-1
+avg_vw_returns_eu25 <- avg_vw_returns_eu25*100
+
 # Add the portfolios
-reg_data <- cbind(
-  reg_data,
-  avg_vw_returns_euro_eur[1:244,])
+reg_data_eu <- cbind(
+  reg_data_eu,
+  avg_vw_returns_eu25[1:244,])
 
 # Excess portfolios, R-RF
-excess_portfolios <- avg_vw_returns_euro_eur[1:244,] - reg_data$RF
+excess_portfolios_eu <- avg_vw_returns_eu25[1:244,] - reg_data_eu$RF
 
-# Regressions for each portfolio
-summary(lm(excess_portfolios[,1]~reg_data$MKTmRF+reg_data$SMB+reg_data$MOM))
-summary(lm(excess_portfolios[,2]~reg_data$MKTmRF+reg_data$SMB+reg_data$MOM))
-summary(lm(excess_portfolios[,3]~reg_data$MKTmRF+reg_data$SMB+reg_data$MOM))
-summary(lm(excess_portfolios[,4]~reg_data$MKTmRF+reg_data$SMB+reg_data$MOM))
-summary(lm(excess_portfolios[,5]~reg_data$MKTmRF+reg_data$SMB+reg_data$MOM))
-summary(lm(excess_portfolios[,6]~reg_data$MKTmRF+reg_data$SMB+reg_data$MOM))
+# The regressions
+ff25_results <- map_dfr(
+  names(excess_portfolios_eu),
+  ~ {
+    model <- lm(excess_portfolios_eu[[.x]] ~ reg_data_eu$MKTmRF + reg_data_eu$SMB + reg_data_eu$MOM)
+    tidy(model) %>%
+      mutate(
+        Portfolio = .x,
+        t_stat = estimate / std.error
+      ) %>%
+      select(Portfolio, term, estimate, t_stat)
+  }
+)
+
+# Arrange nicely
+ff25_results <- ff25_results %>%
+  mutate(term = recode(term,
+                       "(Intercept)" = "Alpha",
+                       "reg_data_eu$MKTmRF" = "MKT",
+                       "reg_data_eu$SMB" = "SMB",
+                       "reg_data_eu$MOM" = "MOM")) %>%
+  arrange(Portfolio, match(term, c("Alpha", "MKT", "SMB", "MOM")))
+
+# (Optional) Pivot wider for a report-style table
+ff25_table <- ff25_results %>%
+  tidyr::pivot_wider(
+    names_from = term,
+    values_from = c(estimate, t_stat),
+    names_glue = "{term}_{.value}"
+  )
+
+# View results
+ff25_table
 
 ```
 
