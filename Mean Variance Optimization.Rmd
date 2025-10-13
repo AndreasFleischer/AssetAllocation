@@ -15,7 +15,6 @@ library(frenchdata)
 library(ggplot2)
 library(quadprog)
 library(lubridate)
-library(ompr)
 library(lpSolve)
 ```
 
@@ -54,6 +53,8 @@ Exchange_rate_US <- Exchange_rate_US %>%
 
 RF.EU <- read_rds("All_years_ready.rds")
 RF.EU <- select(RF.EU, c("TIME_PERIOD", "return"))
+
+factors <- read_rds("new_factors.rds")
 ```
 
 
@@ -65,7 +66,7 @@ optimize_portfolio <- function(excess_returns, cov_period){
   
   Dmat <- cov_period
   dvec <- rep(0, n_assets)
-  Amat <- cbind(rep(1, 12), diag(n_assets))
+  Amat <- cbind(rep(1, n_assets), diag(n_assets))
   bvec <- c(
     1,                   # The value for the first constraint (sum(...) = 1)
     rep(0, n_assets)     # The values for the w_i >= 0 constraints
@@ -86,7 +87,7 @@ optimize_internal <- function(excess_returns, cov_period, target_return){
   
   Dmat <- cov_period
   dvec <- rep(0, n_assets)
-  Amat <- cbind(rep(1, 12), excess_returns, diag(n_assets))
+  Amat <- cbind(rep(1, n_assets), excess_returns, diag(n_assets))
   bvec <- c(
     1,                   # The value for the first constraint (sum(...) = 1)
     target_return,
@@ -125,7 +126,7 @@ optimize_return <- function(excess_returns){
 
 ```
 
-## Samlet
+## Min variance
 ```{r}
 size_mom_6_EU <- size_mom_6_euro$subsets$data[[1]] %>% filter(date >= 200409 & date <= 202412)
 
@@ -152,7 +153,7 @@ excess_returns_US <- sweep(size_mom_6_US[,-1], 1, RF.EU$return, "-") %>%
 excess_returns <- left_join(excess_returns_EU, excess_returns_US, by = "date", suffix = c(".EU", ".US"))
 
 
-n <- nrow(size_mom_6_monthly)-35-1
+n <- nrow(excess_returns)-35-1
 w_matrix3 <- matrix(NA, nrow = n, ncol = 12)
 
 for(i in 1:n){
@@ -167,7 +168,7 @@ for(i in 1:n){
   }
 }
 w_df3 <- as_tibble(w_matrix3)
-names(w_df3) <- names(size_mom_6_monthly[, -1])
+names(w_df3) <- names(excess_returns[, -1])
 w_df3 <- w_df3 %>% 
   mutate(.before = 1, date = size_mom_6_EU$date[36:(nrow(size_mom_6_EU)-1)])
 w_df3 <- mutate(w_df3, RF = 1-rowSums(w_df3[,-1]))
@@ -188,8 +189,9 @@ ggplot(mapping = aes(x = rowSums(return_strat))) +
 # mean(rowSums(return_strat))
 ```
 
+## Max return
 ```{r}
-n <- nrow(size_mom_6_monthly)-35-1
+n <- nrow(excess_returns)-35-1
 w_matrix_max_return <- matrix(NA, nrow = n, ncol = 12)
 
 for(i in 1:n){
@@ -205,7 +207,7 @@ for(i in 1:n){
 }
 
 w_max_return <- as_tibble(w_matrix_max_return)
-names(w_max_return) <- names(size_mom_6_monthly[, -1])
+names(w_max_return) <- names(excess_returns[, -1])
 w_max_return <- w_max_return %>% 
   mutate(.before = 1, date = size_mom_6_EU$date[36:(nrow(size_mom_6_EU)-1)])
 w_max_return <- mutate(w_max_return, RF = 1-rowSums(w_max_return[,-1]))
@@ -216,46 +218,49 @@ mean(rowSums(max_return_strat[,-1]))
 
 ```
 
+## Efficient frontier
 ```{r}
-returns <- left_join(size_mom_6_EU, size_mom_6_US, by = "date", suffix = c(".EU", ".US"))
-returns$RF <- RF.EU$return
-returns <- returns %>% filter(date >= "200709" & date <= "202412")
-
-n_assets <- ncol(size_mom_6_monthly[,-1])
-n <- nrow(size_mom_6_monthly) - 35 - 1
+n_assets <- ncol(factors[,-1])
+n <- nrow(factors) - 35 - 1
 w_matrix_min_var <- matrix(NA, nrow = n, ncol = n_assets)
 w_matrix_max_return <- matrix(NA, nrow = n, ncol = n_assets)
 
-n_internal <- 2
-w_matrix_internal <- array(NA, dim = c(n, n_assets, n_internal))
+n_internal <- 10
+w_matrix_internal <- array(NA, dim = c(n_internal, n, n_assets))
+target_returns <- array(NA, c(n, n_internal))
 
 for(i in 1:n){
-  returns_period <- excess_returns[i:(i+35),-1]
-  mu <- colMeans(returns_period)
-  cov_period <- cov(returns_period)
-  print(i)
+  excess_returns_period <- factors[i:(i+35),-1]
+  mu <- colMeans(excess_returns_period)
+  cov_period <- cov(excess_returns_period)
   if(all(mu <= 0)){
     w_matrix_min_var[i,] <- 0
     w_matrix_max_return[i,] <- 0
-    w_matrix_internal[i, , j] <- 0
+    w_matrix_internal[,i , ] <- 0
+    target_returns[i,] <- 0
   } else{
     w_matrix_min_var[i,] <- optimize_portfolio(mu, cov_period)
     w_matrix_max_return[i,] <- optimize_return(mu)
-    print(returns[i:(i+35),-c(1, 14)])
-    return_period <- colMeans(returns[i:(i+35),-c(1, 14)])
-    return_min_var <- sum(return_period*w_matrix_min_var[i,])
-    return_max_return <- sum(return_period*w_matrix_max_return[i,])
     
+    return_min_var <- sum(mu*w_matrix_min_var[i,])
+    return_max_return <- sum(mu*w_matrix_max_return[i,])
     
-    target_returns <- seq(return_min_var, return_max_return, (return_max_return - return_min_var)/(n_internal+1))
-    target_returns <- target_returns[-c(1, length(target_returns))]
-    
-    # for(j in 1:length(target_returns)){
-    #   w_matrix_internal[i,,j] <- optimize_internal(mu, cov_period, target_returns[j])
-    # }
+    target_returns_tmp <- seq(return_min_var, return_max_return, (return_max_return - return_min_var)/(n_internal+1))
+    target_returns[i,] <- target_returns_tmp[-c(1, length(target_returns_tmp))]
+    for(j in 1:length(target_returns[i,])){
+      w_matrix_internal[j,i,] <- optimize_internal(mu, cov_period, target_returns[i,j])
+    }
   }
 }
 
+colnames(w_matrix_min_var) <- colnames(factors[,-1])
+current_dimnames <- dimnames(w_matrix_internal)
+current_dimnames[[3]] <- colnames(factors[,-1])
+dimnames(w_matrix_internal) <- current_dimnames
+colnames(w_matrix_max_return) <- colnames(factors[,-1])
+
+round(w_matrix_internal[,1,], 3)
+round(target_returns[1,], 3)
 ```
 
 
