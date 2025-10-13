@@ -81,7 +81,7 @@ optimize_portfolio <- function(excess_returns, cov_period){
   return(w)
 }
 
-optimize_internal <- function(excess_returns, cov_period, terget_return){
+optimize_internal <- function(excess_returns, cov_period, target_return){
   n_assets <- length(excess_returns)
   
   Dmat <- cov_period
@@ -92,7 +92,7 @@ optimize_internal <- function(excess_returns, cov_period, terget_return){
     target_return,
     rep(0, n_assets)     # The values for the w_i >= 0 constraints
   )
-  meq <- c(1, 2)
+  meq <- 2
   
   sol<- solve.QP(Dmat = Dmat,
                               dvec = dvec,
@@ -184,6 +184,8 @@ return_strat <- round(returns[,-1] * w_df3[,-1], 3)
 ggplot(mapping = aes(x = rowSums(return_strat))) + 
   geom_histogram(color = "white") +
   geom_vline(xintercept = quantile(rowSums(return_strat), p = c(0.025, 0.975)))
+
+# mean(rowSums(return_strat))
 ```
 
 ```{r}
@@ -231,26 +233,26 @@ for(i in 1:n){
   returns_period <- excess_returns[i:(i+35),-1]
   mu <- colMeans(returns_period)
   cov_period <- cov(returns_period)
-  
+  print(i)
   if(all(mu <= 0)){
     w_matrix_min_var[i,] <- 0
     w_matrix_max_return[i,] <- 0
+    w_matrix_internal[i, , j] <- 0
   } else{
     w_matrix_min_var[i,] <- optimize_portfolio(mu, cov_period)
     w_matrix_max_return[i,] <- optimize_return(mu)
-  }
-  
-  return_period <- colMeans(returns[i:(i+35),-c(1, 14)])
-  return_min_var <- sum(return_period*w_matrix_min_var[i,])
-  return_max_return <- sum(return_period*w_matrix_max_return[i,])
-  
-  print(return_min_var)
-  
-  target_returns <- seq(return_min_var, return_max_return, (return_max_return - return_min_var)/(n_internal+1))
-  terget_returns <- target_returns[-c(1, length(target_returns))]
-  
-  for(j in 1:length(target_returns)){
-    w_matrix_internal[i,,j] <- optimize_internal(mu, cov_period, target_returns[j])
+    print(returns[i:(i+35),-c(1, 14)])
+    return_period <- colMeans(returns[i:(i+35),-c(1, 14)])
+    return_min_var <- sum(return_period*w_matrix_min_var[i,])
+    return_max_return <- sum(return_period*w_matrix_max_return[i,])
+    
+    
+    target_returns <- seq(return_min_var, return_max_return, (return_max_return - return_min_var)/(n_internal+1))
+    target_returns <- target_returns[-c(1, length(target_returns))]
+    
+    # for(j in 1:length(target_returns)){
+    #   w_matrix_internal[i,,j] <- optimize_internal(mu, cov_period, target_returns[j])
+    # }
   }
 }
 
