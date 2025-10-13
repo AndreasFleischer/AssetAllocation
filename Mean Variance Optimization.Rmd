@@ -193,6 +193,8 @@ for(i in 1:n){
 }
 w_df3 <- as_tibble(w_matrix3)
 names(w_df3) <- names(size_mom_6_monthly[, -1])
+w_df3 <- w_df3 %>% 
+  mutate(.before = 1, date = size_mom_6_EU$date[36:nrow(size_mom_6_EU)])
 round(w_df3, 3)
 
 ```
@@ -200,7 +202,27 @@ round(w_df3, 3)
 
 # Risk parity
 ```{r}
+factors <- read_rds("new_factors.rds")
 
+n_factors <- ncol(factors[,-1])
+n <- nrow(factors)-35
+w_matrix_rp <- matrix(NA, nrow = n, ncol = n_factors)
+
+for(i in 1:n){
+  factors_period <- factors[i:(i+35),-1]
+  volatility <- (factors_period %>%
+    summarise(across(c(SMB_EU_US, MOM_EU_US, SMB_EU_EU, MOM_EU_EU), ~sd(.x)))) %>% 
+    as.numeric()
+  w_matrix_rp[i,] <- 1/volatility/sum(1/volatility)
+}
+
+w_rp <- as_tibble(w_matrix_rp)
+names(w_rp) <- names(factors[, -1])
+w_rp <- w_rp %>% 
+  mutate(.before = 1, date = factors$date[36:nrow(factors)])
+round(w_rp, 3)
 ```
+
+
 
 
