@@ -16,6 +16,8 @@ library(tidyverse)
 library(frenchdata)
 library(ggplot2)
 library(lubridate)
+library(broom)
+library(purrr)
 ```
 
 # Data
@@ -119,7 +121,7 @@ summary(lm(MKT_EU_US$Mkt[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
 SMB_values_eu <- rowMeans(avg_vw_returns_eu[, 1:3]) - rowMeans(avg_vw_returns_eu[, 4:6])
 SMB_EU_US <- data.frame(date = number_firms$date,
                      SMB = SMB_values_eu)
-t.test(SMB_EU_US$SMB)
+t.test(SMB_EU_US$SMB[1:244])
 summary(lm(SMB_EU_US$SMB[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
 ```
 # EUR-US (MOM)
@@ -327,4 +329,35 @@ ff25_table <- ff25_results %>%
 ff25_table
 ff25_table
 ```
-
+# Long-Only (SMB EU-US)
+```{r}
+SMB_values_eu_us_long <- rowMeans(avg_vw_returns_eu[, 1:3])
+SMB_EU_US_long <- data.frame(date = number_firms$date,
+                     SMB = SMB_values_eu_us_long)
+t.test(SMB_EU_US_long$SMB[1:244])
+summary(lm(SMB_EU_US_long$SMB[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
+```
+# Long-Only (MOM EU-US)
+```{r}
+MOM_values_eu_us_long <- avg_vw_returns_eu[,6]
+MOM_EU_US_long <- data.frame(date = number_firms$date,
+                     MOM = MOM_values_eu_us_long)
+t.test(MOM_EU_US_long$MOM[1:244])
+summary(lm(MOM_EU_US_long$MOM[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
+```
+# Long-Only (SMB EU-EU)
+```{r}
+SMB_values_eu_eu_long <- rowMeans(avg_vw_returns_euro_eur[, 1:3])
+SMB_EU_EU_long <- data.frame(date = number_firms$date,
+                     SMB = SMB_values_eu_eu_long)
+t.test(SMB_EU_EU_long$SMB[1:244])
+summary(lm(SMB_EU_EU_long$SMB[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
+```
+# Long-Only (MOM EU-EU)
+```{r}
+MOM_values_eu_eu_long <- avg_vw_returns_euro_eur[,6]
+MOM_EU_EU_long <- data.frame(date = number_firms$date,
+                     MOM = MOM_values_eu_eu_long)
+t.test(MOM_EU_EU_long$MOM[1:244])
+summary(lm(MOM_EU_EU_long$MOM[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
+```
