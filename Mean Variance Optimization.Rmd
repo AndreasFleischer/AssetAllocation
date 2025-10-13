@@ -14,6 +14,7 @@ library(tidyverse)
 library(frenchdata)
 library(ggplot2)
 library(quadprog)
+library(lubridate)
 ```
 
 # Loading data
@@ -48,9 +49,14 @@ Exchange_rate_US <- Exchange_rate_US %>%
   mutate(Date = floor_date(Date, " month")) %>% 
   group_by(Date) %>% 
   summarise(USD = mean(USD))
+
+RF.EU <- read_rds("All_years_ready.rds")
+RF.EU <- select(RF.EU, c("TIME_PERIOD", "return"))
 ```
 
-# Function to do the optimization
+
+# Mean variance
+## Function to do the optimization
 ```{r}
 optimize_portfolio <- function(excess_returns, cov_period){
   n_assets <- length(excess_returns)
@@ -74,7 +80,7 @@ optimize_portfolio <- function(excess_returns, cov_period){
 }
 ```
 
-# US-US
+## US-US
 ```{r}
 size_mom_6_monthly <- size_mom_6$subsets$data[[1]] %>% filter(date >= 200409)
 
@@ -101,14 +107,9 @@ names(w_df) <- names(size_mom_6_monthly[, -1])
 round(w_df, 3)
 ```
 
-#US-EU
+## US-EU
 ```{r}
 size_mom_6_monthly <- size_mom_6$subsets$data[[1]] %>% filter(date >= 200409)
-
-RF.US <- ff_3_factors$subsets$data[[1]] %>% filter(date >= 200409) %>% 
-  select(c("date", "RF"))
-
-RF.EU <- RF.US # skal ændres til EU
 
 returns_EUR <- sweep(size_mom_6_monthly[,-1], 1, Exchange_rate_US$USD, "/")
 
@@ -133,14 +134,9 @@ round(w_df2, 3)
 ```
 
 
-#EU-EU
+## EU-EU
 ```{r}
 size_mom_6_monthly <- size_mom_6_euro$subsets$data[[1]] %>% filter(date >= 200409)
-
-RF.US <- ff_3_factors$subsets$data[[1]] %>% filter(date >= 200409) %>% 
-  select(c("date", "RF"))
-
-RF.EU <- RF.US # skal ændres til EU
 
 n <- nrow(size_mom_6_monthly)-35
 w_matrix3 <- matrix(NA, nrow = n, ncol = 6)
@@ -161,4 +157,50 @@ w_df3 <- as_tibble(w_matrix3)
 names(w_df3) <- names(size_mom_6_monthly[, -1])
 round(w_df3, 3)
 ```
+
+## Samlet
+```{r}
+size_mom_6_EU <- size_mom_6_euro$subsets$data[[1]] %>% filter(date >= 200409 & date <= 202412)
+
+excess_returns_EU <- sweep(size_mom_6_EU[,-1], 1, RF.EU$return, "-") %>% 
+  mutate(.before = 1, date = size_mom_6_EU$date)
+
+RF.US <- ff_3_factors$subsets$data[[1]] %>% filter(date >= 200409 & date <= 202412) %>% 
+  select(c("date", "RF"))
+
+size_mom_6_US <- size_mom_6$subsets$data[[1]] %>% filter(date >= 200409 & date <= 202412)
+
+excess_returns_US <- sweep(size_mom_6_US[,-1], 1, RF.US$RF, "-") %>% 
+  mutate(.before = 1, date = size_mom_6_US$date)
+
+size_mom_6_monthly <- left_join(excess_returns_EU, excess_returns_US, by = "date", suffix = c(".EU", ".US"))
+
+
+
+n <- nrow(size_mom_6_monthly)-35
+w_matrix3 <- matrix(NA, nrow = n, ncol = 12)
+
+for(i in 1:n){
+  returns_period <- size_mom_6_monthly[i:(i+35),-1]
+  mu <- colMeans(returns_period)
+  cov_period <- cov(returns_period)
+  
+  if(all(mu <= 0)){
+    w_matrix3[i,] <- 0
+  } else{
+    w_matrix3[i,] <- optimize_portfolio(mu, cov_period)
+  }
+}
+w_df3 <- as_tibble(w_matrix3)
+names(w_df3) <- names(size_mom_6_monthly[, -1])
+round(w_df3, 3)
+
+```
+
+
+# Risk parity
+```{r}
+
+```
+
 
