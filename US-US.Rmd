@@ -461,4 +461,39 @@ ff25_table
 round(ff25_table$MOM_t_stat,2)
 ```
 
+```{r}
+library(quadprog)
+factor.df <- data.frame(SMB_us = SMB_EU_US$SMB,
+                        MOM_us = MOM_EU_US$MOM,
+                        SMB_eu = SMB_EU_EU$SMB,
+                        MOM_eu = MOM_EU_EU$MOM)
+cov.mat <- cov(factor.df)
+mean.vec <- colMeans(factor.df-All_years$return)
+
+optimize_portfolio <- function(excess_returns, cov_period){
+  n_assets <- length(excess_returns)
+  
+  Dmat <- cov_period
+  dvec <- rep(0, n_assets)
+  Amat <- cbind(rep(1, n_assets))
+  bvec <- c(
+    1                   # The value for the first constraint (sum(...) = 1)
+  )
+  meq <- 0
+  
+  sol<- solve.QP(Dmat = Dmat,
+                              dvec = dvec,
+                              Amat = Amat,
+                              bvec = bvec,
+                              meq = meq)
+  w <- sol$solution/sum(sol$solution)
+  return(w)
+}
+
+opt.w <- optimize_portfolio(mean.vec,cov.mat)
+
+t(opt.w)%*%mean.vec
+t(opt.w)%*%cov.mat%*%opt.w
+```
+
 
