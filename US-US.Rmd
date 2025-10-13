@@ -363,12 +363,102 @@ summary(lm(MOM_EU_EU_long$MOM[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
 ```
 
 ```{r}
-new_factors <- data.frame(date = number_firms$date,
-                          SMB_EU_US = SMB_EU_US_long$SMB,
-                          MOM_EU_US = MOM_EU_US_long$MOM,
-                          SMB_EU_EU = SMB_EU_EU_long$SMB,
-                          MOM_EU_EU = MOM_EU_EU_long$MOM)
-new_factors <- new_factors[1:244,]
-saveRDS(new_factors,"new_factors.rds")
+readRDS("new_factors.rds")
 ```
+
+# Time-Series (EU-US) Long-Only
+```{r}
+reg_data_us <- data.frame(
+  date = MKT_EU_US$date,
+  MKTmRF = MKT_EU_US$Mkt,
+  SMB = SMB_EU_US_long$SMB,
+  MOM = MOM_EU_US_long$MOM) %>%
+  filter(date <= 202412) %>%
+  mutate(MKTmRF = MKTmRF - All_years$return,
+         RF = All_years$return)
+
+# The regressions
+ff25_results <- map_dfr(
+  names(excess_portfolios_us),
+  ~ {
+    model <- lm(excess_portfolios_us[[.x]] ~ reg_data_us$MKTmRF + reg_data_us$SMB + reg_data_us$MOM)
+    tidy(model) %>%
+      mutate(
+        Portfolio = .x,
+        t_stat = estimate / std.error
+      ) %>%
+      select(Portfolio, term, estimate, t_stat)
+  }
+)
+
+# Arrange nicely
+ff25_results <- ff25_results %>%
+  mutate(term = recode(term,
+                       "(Intercept)" = "Alpha",
+                       "reg_data_us$MKTmRF" = "MKT",
+                       "reg_data_us$SMB" = "SMB",
+                       "reg_data_us$MOM" = "MOM")) %>%
+  arrange(Portfolio, match(term, c("Alpha", "MKT", "SMB", "MOM")))
+
+# (Optional) Pivot wider for a report-style table
+ff25_table <- ff25_results %>%
+  tidyr::pivot_wider(
+    names_from = term,
+    values_from = c(estimate, t_stat),
+    names_glue = "{term}_{.value}"
+  )
+
+# View results
+ff25_table
+round(ff25_table$MOM_t_stat,2)
+```
+
+
+# Time-Series (EU-EU) Long-Only
+```{r}
+reg_data_eu <- data.frame(
+  date = MKT_EU_EU$date,
+  MKTmRF = MKT_EU_EU$Mkt,
+  SMB = SMB_EU_EU_long$SMB,
+  MOM = MOM_EU_EU_long$MOM) %>%
+  filter(date <= 202412) %>%
+  mutate(MKTmRF = MKTmRF - All_years$return,
+         RF = All_years$return)
+
+# The regressions
+ff25_results <- map_dfr(
+  names(excess_portfolios_eu),
+  ~ {
+    model <- lm(excess_portfolios_eu[[.x]] ~ reg_data_eu$MKTmRF + reg_data_eu$SMB + reg_data_eu$MOM)
+    tidy(model) %>%
+      mutate(
+        Portfolio = .x,
+        t_stat = estimate / std.error
+      ) %>%
+      select(Portfolio, term, estimate, t_stat)
+  }
+)
+
+# Arrange nicely
+ff25_results <- ff25_results %>%
+  mutate(term = recode(term,
+                       "(Intercept)" = "Alpha",
+                       "reg_data_eu$MKTmRF" = "MKT",
+                       "reg_data_eu$SMB" = "SMB",
+                       "reg_data_eu$MOM" = "MOM")) %>%
+  arrange(Portfolio, match(term, c("Alpha", "MKT", "SMB", "MOM")))
+
+# (Optional) Pivot wider for a report-style table
+ff25_table <- ff25_results %>%
+  tidyr::pivot_wider(
+    names_from = term,
+    values_from = c(estimate, t_stat),
+    names_glue = "{term}_{.value}"
+  )
+
+# View results
+ff25_table
+round(ff25_table$MOM_t_stat,2)
+```
+
 
