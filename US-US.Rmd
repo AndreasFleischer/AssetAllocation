@@ -361,3 +361,14 @@ MOM_EU_EU_long <- data.frame(date = number_firms$date,
 t.test(MOM_EU_EU_long$MOM[1:244])
 summary(lm(MOM_EU_EU_long$MOM[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
 ```
+
+```{r}
+new_factors <- data.frame(date = number_firms$date,
+                          SMB_EU_US = SMB_EU_US_long$SMB,
+                          MOM_EU_US = MOM_EU_US_long$MOM,
+                          SMB_EU_EU = SMB_EU_EU_long$SMB,
+                          MOM_EU_EU = MOM_EU_EU_long$MOM)
+new_factors <- new_factors[1:244,]
+saveRDS(new_factors,"new_factors.rds")
+```
+
