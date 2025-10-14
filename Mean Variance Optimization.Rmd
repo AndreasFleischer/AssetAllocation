@@ -270,6 +270,7 @@ for(i in 1:n_internal){
   return_internal[,i] <- rowSums(w_internal[i,,]*factors_period[,-1])
 }
 
+
 ```
 
 ### Plot af efficient frontier
@@ -282,25 +283,25 @@ var_func <- function(w, Sigma, k){
 
 k <- 208
 
-variance <- c(var_func(w_min_var, Sigma, k))
+variance_k <- c(var_func(w_min_var, Sigma, k))
 for(i in 1:n_internal){
-  variance <- c(variance, var_func(w_internal[i,,], Sigma, k))
+  variance_k <- c(variance_k, var_func(w_internal[i,,], Sigma, k))
 }
-variance <- c(variance, var_func(w_max_return, Sigma, k))
+variance_k <- c(variance_k, var_func(w_max_return, Sigma, k))
 
 # returns 
-return_min_var <- sum(w_min_var[k,]*mu[k,])
-return_max_return <- sum(w_max_return[k,]*mu[k,])
-return_internal <- rep(NA, n_internal)
+return_min_var_k <- sum(w_min_var[k,]*mu[k,])
+return_max_return_k <- sum(w_max_return[k,]*mu[k,])
+return_internal_k <- rep(NA, n_internal)
 for(i in 1:n_internal){
-  return_internal[i] <- sum(w_internal[i,k,]*mu[k,])
+  return_internal_k[i] <- sum(w_internal[i,k,]*mu[k,])
 }
-return <- c(return_min_var, return_internal, return_max_return)
-return
+return_k <- c(return_min_var_k, return_internal_k, return_max_return_k)
+return_k
 
 df_frontier <- tibble(
   "variance" = variance,
-  "Return" = return
+  "Return" = return_k
 )
 
 factors[k:(nrow(factors)-1),]
@@ -309,6 +310,46 @@ ggplot(df_frontier, aes(variance, Return)) +
   geom_point() +
   ggtitle("Efficient frontier 12-2021 to 11-2024") +
   theme_bw()
+```
+
+```{r}
+k <- n
+return_min_var[k]
+return_max_return[k]
+
+# return for perioden
+total_return_min_var <- (cumprod(1+return_min_var/100)-1)*100
+total_return_max_return <- (cumprod(1+return_max_return/100)-1)*100
+
+total_return_min_var[k]/n
+total_return_max_return[k]/n
+
+sd(return_min_var)
+sd(return_max_return)
+
+total_return_df <- tibble(
+  "Date" = factors_period$date,
+  "Min_var" = total_return_min_var,
+  "Max_return" = total_return_max_return
+)
+
+total_return_df %>% 
+  pivot_longer(cols = -Date, names_to = "Portfolio", values_to = "Cumulated_returns") %>% 
+  mutate(Date = ym(Date)) %>% 
+  ggplot(aes(Date, Cumulated_returns, color = Portfolio)) +
+    geom_line(linewidth = 1) +
+    theme_bw() +
+    ggtitle("Cumulated returns for the minimum variance and the maximum\n return portfolios") +
+    ylab("Cumulated returns") +
+    scale_color_manual(
+      name = "Portfolio Type",
+      labels = c("Maximum Return", "Minimum Variance"),
+      values = c("Max_return" = "black", "Min_var" = "red3") 
+    )
+
+factors_period
+
+
 ```
 
 
