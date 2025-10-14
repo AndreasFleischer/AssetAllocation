@@ -385,7 +385,7 @@ plot_data <- cumulative_return_df %>%
   mutate(Portfolio = factor(Portfolio, levels = new_names))
 
 ggplot(plot_data, aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
-  geom_line(linewidth = 1) +
+  geom_line(linewidth = 0.5) +
   scale_color_viridis_d(option = "cividis") +
   labs(
     title = "Cumulative Returns of Efficient Frontier Portfolios",
@@ -401,15 +401,19 @@ ggplot(plot_data, aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
     legend.position = "right",
     legend.title = element_text(face = "bold")
   )
+
+
+
+c(min(cumulative_return_internal[k,]), max(cumulative_return_internal[k,]))
+c(min(cumulative_return_internal[k,]/n), max(cumulative_return_internal[k,]/n))
+c(min(apply(return_internal, 2, sd)), max(apply(return_internal, 2, sd)))
 ```
 
 
 # Risk parity
 ```{r}
-factors <- read_rds("new_factors.rds")
-
 n_factors <- ncol(factors[,-1])
-n <- nrow(factors)-35
+n <- nrow(factors)-35-1
 w_matrix_rp <- matrix(NA, nrow = n, ncol = n_factors)
 
 for(i in 1:n){
@@ -423,8 +427,46 @@ for(i in 1:n){
 w_rp <- as_tibble(w_matrix_rp)
 names(w_rp) <- names(factors[, -1])
 w_rp <- w_rp %>% 
-  mutate(.before = 1, date = factors$date[36:nrow(factors)])
+  mutate(.before = 1, date = factors$date[37:nrow(factors)])
 round(w_rp, 3)
+
+factors_return_calc <- factors[37:nrow(factors),]
+
+return_rp <- rowSums(w_rp[,-1]*factors_return_calc[,-1])
+```
+
+## Plot af risk parity
+```{r}
+cumulative_return_rp <- (cumprod(1+return_rp/100)-1)*100
+cumulative_return_mv_chosen <- cumulative_return_internal[,6]
+
+round(cumulative_return_rp[n], 0)-round(cumulative_return_mv_chosen[n], 0)
+round(cumulative_return_rp[n]/n, 2) - round(cumulative_return_mv_chosen[n]/n, 2)
+round(sd(return_rp), 2)-round(sd(return_internal[,6]), 2)
+
+rp_df <- tibble(
+  Date = ym(factors_return_calc$date),
+  "Risk parity" = cumulative_return_rp,
+  "Chosen mean variance" = cumulative_return_mv_chosen
+)
+
+
+rp_df %>% 
+  pivot_longer(cols = -Date, names_to = "Portfolio", values_to = "Cumulative_Return") %>% 
+  ggplot(aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
+    geom_line(linewidth = 1) +
+    labs(
+      title = "Cumulative Returns of Risk parity portfolio",
+      x = "Date",
+      y = "Cumulative Return"
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold", size = 16),
+      plot.subtitle = element_text(size = 12),
+      legend.position = "right",
+      legend.title = element_text(face = "bold")
+    )
 ```
 
 
