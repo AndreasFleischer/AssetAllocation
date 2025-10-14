@@ -329,6 +329,18 @@ ff25_table <- ff25_results %>%
 ff25_table
 ff25_table
 ```
+# Summarize expected surplus and covariance
+```{r}
+recommended_factors <- data.frame(MOM_US = MOM_EU_US$MOM[1:244]-All_years$return,
+                                  SMB_EU = SMB_EU_EU$SMB[1:244]-All_years$return,
+                                  MOM_EU = MOM_EU_EU$MOM[1:244]-All_years$return)
+
+round(colMeans(recommended_factors),3)
+round(cov(recommended_factors),3)
+
+```
+
+
 # Long-Only (SMB EU-US)
 ```{r}
 SMB_values_eu_us_long <- rowMeans(avg_vw_returns_eu[, 1:3])
@@ -410,7 +422,7 @@ ff25_table <- ff25_results %>%
 
 # View results
 ff25_table
-round(ff25_table$MOM_t_stat,2)
+ff25_table$MOM_t_stat
 ```
 
 
@@ -460,6 +472,19 @@ ff25_table <- ff25_results %>%
 ff25_table
 round(ff25_table$MOM_t_stat,2)
 ```
+# Long-Only summary
+```{r}
+recommended_factors_long <- data.frame(SMB_US = SMB_EU_EU_long$SMB[1:244]-All_years$return,
+                                       MOM_US = MOM_EU_US_long$MOM[1:244]-All_years$return,
+                                  SMB_EU = SMB_EU_EU_long$SMB[1:244]-All_years$return,
+                                  MOM_EU = MOM_EU_EU_long$MOM[1:244]-All_years$return)
+
+round(colMeans(recommended_factors_long),3)
+round(cov(recommended_factors_long),3)
+
+```
+
+
 
 ```{r}
 library(quadprog)
@@ -493,7 +518,70 @@ optimize_portfolio <- function(excess_returns, cov_period){
 opt.w <- optimize_portfolio(mean.vec,cov.mat)
 
 t(opt.w)%*%mean.vec
-t(opt.w)%*%cov.mat%*%opt.w
+t(opt.w)%*% cov.mat %*%opt.w
 ```
 
+
+# CPPI
+```{r}
+MKT_EU_EU[1:36,]
+
+# Calculation of guarantees
+TTM <-  seq(10, 0, -1/12)
+L_target <- 125/100
+L_trigger <- 130/100
+
+Guarantees <- c()
+for (j in 36:124){
+  ZCB_prices <-  All_years %>% 
+    filter(TIME_PERIOD >= All_years$TIME_PERIOD[j] &
+             TIME_PERIOD <= All_years$TIME_PERIOD[j+120]) %>% 
+    mutate(
+    TTM = TTM,
+    z = BETA0 +
+      BETA1 * ((1 - exp(-TTM / TAU1)) / (TTM / TAU1)) +
+      BETA2 * ((1 - exp(-TTM / TAU1)) / (TTM / TAU1) - exp(-TTM / TAU1)) +
+      BETA3 * ((1 - exp(-TTM / TAU2)) / (TTM / TAU2) - exp(-TTM / TAU2)),
+    P_T = exp(-z/100 * TTM))
+  ZCB_prices$P_T[121] <- 1
+  E_returns <- (MKT_EU_EU %>% filter(ym(date) >= All_years$TIME_PERIOD[j]))$Mkt/100
+  
+  N <- 80/ZCB_prices$P_T[1]
+  eta0 <- 20
+  A <- 1
+  A <- eta0*A
+  
+  for (i in 1:120){
+    A <- (1+E_returns[i])*A
+    R <- N*ZCB_prices$P_T[i+1]
+    if ((A+R)/R > L_trigger){
+      N <- (A+R)/(L_target*ZCB_prices$P_T[i+1])
+    }
+  }
+  Guarantees[j-35] <- N
+}
+Guarantees
+
+guarantee_df <- data.frame(date = All_years$TIME_PERIOD[36:124],
+                           Guarantee = Guarantees)
+ggplot(guarantee_df, aes(x = as.Date(date), y = Guarantee)) +
+  geom_line(color = "#0072B2", size = 1.1) +
+  geom_point(color = "#0072B2", size = 2, alpha = 0.7) +
+  scale_x_date(date_labels = "%Y", date_breaks = "2 years") +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.01)) +
+  labs(
+    title = "Development of the Portfolio Guarantee Over Time",
+    subtitle = "Guarantee level implied by CPPI floor mechanism (in EUR terms)",
+    x = "Date",
+    y = "Guarantee Value"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
+    plot.subtitle = element_text(size = 11, hjust = 0.5, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank()
+  )
+```
 
