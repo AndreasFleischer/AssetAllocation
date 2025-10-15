@@ -19,6 +19,7 @@ library(ggplot2)
 library(quadprog)
 library(lubridate)
 library(lpSolve)
+library(xtable)
 ```
 
 # Loading data
@@ -397,8 +398,8 @@ cumulative_return_df %>%
   ggplot(aes(Date, Cumulated_returns, color = Portfolio)) +
     geom_line(linewidth = 1) +
     theme_bw() +
-    ggtitle("Cumulated returns for the minimum variance and the maximum\n return portfolios") +
-    ylab("Cumulated returns") +
+    ggtitle("Cumulative returns") +
+    ylab("Cumulative returns") +
     scale_color_manual(
       name = "Portfolio Type",
       labels = c("Maximum Return", "Minimum Variance"),
@@ -469,8 +470,8 @@ n <- nrow(factors)-35-1
 w_matrix_rp <- matrix(NA, nrow = n, ncol = n_factors)
 
 for(i in 1:n){
-  factors_period <- factors[i:(i+35),-1]
-  volatility <- (factors_period %>%
+  factors_period_tmp <- factors[i:(i+35),-1]
+  volatility <- (factors_period_tmp %>%
     summarise(across(c(MKT_EU_US, SMB_EU_US, MOM_EU_US, MKT_EU_EU, SMB_EU_EU, MOM_EU_EU), ~sd(.x)))) %>% 
     as.numeric()
   w_matrix_rp[i,] <- 1/volatility/sum(1/volatility)
@@ -489,7 +490,7 @@ return_rp <- rowSums(w_rp[,-1]*factors_return_calc[,-1])
 
 ## Plot af risk parity
 ```{r}
-k <- 2
+k <- 1
 
 cumulative_return_rp <- (cumprod(1+return_rp/100)-1)*100
 cumulative_return_mv_chosen <- cumulative_return_internal[,k]
@@ -521,11 +522,13 @@ rp_df %>%
       legend.position = "right",
       legend.title = element_text(face = "bold")
     )
+
+
 ```
 
 ```{r}
 returns_all <- cbind(
-  factors_period$date,
+  factors$date,
   return_min_var,
   return_internal,
   return_max_return
@@ -537,8 +540,44 @@ new_names <- c("date", "min_var", paste("Portfolio ", 1:5), "max_return")
 colnames(returns_all) <- new_names
 
 cumulative_returns_all <- returns_all %>% 
-  
-  
+  mutate(across(2:8, ~(cumprod(1+.x/100)-1))*100)
+
+summary_table <- cumulative_returns_all %>%
+  pivot_longer(cols = -date, names_to = "Portfolio", values_to = "Cumulative_return") %>% 
+  mutate(Portfolio = factor(Portfolio, levels = new_names)) %>%
+  group_by(Portfolio) %>% 
+  summarise(
+    "Cumulative_return_end" = last(Cumulative_return),
+    "Mean_return" = Cumulative_return_end/n
+  )
+
+volatility <- returns_all %>% 
+  pivot_longer(cols = -date, names_to = "Portfolio", values_to = "Returns") %>% 
+  mutate(Portfolio = factor(Portfolio, levels = new_names)) %>%
+  group_by(Portfolio) %>% 
+  summarise(Volatility = sd(Returns))
+
+summary_table <- left_join(summary_table, volatility, by = "Portfolio")
+summary_table <- rbind(summary_table, tibble(
+  Portfolio = "Risk_parity",
+  Cumulative_return_end = cumulative_return_rp[n],
+  Mean_return = cumulative_return_rp[n]/n,
+  Volatility = sd(return_rp)
+))
+
+
+
+summary_table[2,]
+
+
+returns_choice <- tibble(
+  date = returns_all$date,
+  "return" = returns_all$`Portfolio  2`
+)
+
+t(summary_table)
+
+xtable(t(summary_table))
 ```
 
 
