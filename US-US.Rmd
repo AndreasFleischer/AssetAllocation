@@ -75,6 +75,8 @@ SMB_US <- data.frame(date = number_firms$date,
 
 SMB_US$SMB-true_factors$SMB
 summary(lm(SMB_US$SMB[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
+
+mean(SMB_US$SMB[1:244]-RF$RF[1:244])
 ```
 # US-US (MOM)
 ```{r}
@@ -585,12 +587,12 @@ ggplot(guarantee_df, aes(x = as.Date(date), y = Guarantee)) +
 
 # CPPI Extended
 ```{r}
-
 L_target <- 125/100
 L_trigger <- 130/100
 m <- 2
 
-Guarantees <- c()
+CPPI <- function(m,L_target,L_trigger,return_series){
+  Guarantees <- c()
 for (j in 36:124){
   ZCB_prices <-  All_years %>% 
     filter(TIME_PERIOD >= All_years$TIME_PERIOD[j] &
@@ -603,7 +605,7 @@ for (j in 36:124){
       BETA3 * ((1 - exp(-TTM / TAU2)) / (TTM / TAU2) - exp(-TTM / TAU2)),
     P_T = exp(-z/100 * TTM))
   ZCB_prices$P_T[121] <- 1
-  E_returns <- (MKT_EU_EU %>% filter(ym(date) >= All_years$TIME_PERIOD[j]))$Mkt/100
+  E_returns <- (return_series %>% filter(ym(date) >= All_years$TIME_PERIOD[j]))$return/100
   
   W <- 100
   Floor <- 80
@@ -629,7 +631,7 @@ for (j in 36:124){
   }
   Guarantees[j-35] <- Floor
 }
-
-mean(ttt>Guarantees)
+  return(Guarantees)
+}
 ```
 
