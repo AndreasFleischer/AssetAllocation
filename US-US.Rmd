@@ -524,8 +524,6 @@ t(opt.w)%*% cov.mat %*%opt.w
 
 # CPPI
 ```{r}
-MKT_EU_EU[1:36,]
-
 # Calculation of guarantees
 TTM <-  seq(10, 0, -1/12)
 L_target <- 125/100
@@ -583,5 +581,55 @@ ggplot(guarantee_df, aes(x = as.Date(date), y = Guarantee)) +
     panel.grid.minor = element_blank(),
     panel.grid.major.x = element_blank()
   )
+```
+
+# CPPI Extended
+```{r}
+
+L_target <- 125/100
+L_trigger <- 130/100
+m <- 2
+
+Guarantees <- c()
+for (j in 36:124){
+  ZCB_prices <-  All_years %>% 
+    filter(TIME_PERIOD >= All_years$TIME_PERIOD[j] &
+             TIME_PERIOD <= All_years$TIME_PERIOD[j+120]) %>% 
+    mutate(
+    TTM = TTM,
+    z = BETA0 +
+      BETA1 * ((1 - exp(-TTM / TAU1)) / (TTM / TAU1)) +
+      BETA2 * ((1 - exp(-TTM / TAU1)) / (TTM / TAU1) - exp(-TTM / TAU1)) +
+      BETA3 * ((1 - exp(-TTM / TAU2)) / (TTM / TAU2) - exp(-TTM / TAU2)),
+    P_T = exp(-z/100 * TTM))
+  ZCB_prices$P_T[121] <- 1
+  E_returns <- (MKT_EU_EU %>% filter(ym(date) >= All_years$TIME_PERIOD[j]))$Mkt/100
+  
+  W <- 100
+  Floor <- 80
+  C <- W-Floor
+  E <- max(min(m*C,W),0)
+  A <- E
+  etaR <- (W-E)/ZCB_prices$P_T[1]
+  N <- Floor/ZCB_prices$P_T[1]
+  for (i in 1:120){
+    A <- (1+E_returns[i])*A
+    R <- etaR*ZCB_prices$P_T[i+1]
+    W <- A+R
+    Floor <- N*ZCB_prices$P_T[i+1]
+    C <- W-Floor
+    E <- max(min(m*C,W),0)
+    A <- E
+    etaR <- (W-E)/ZCB_prices$P_T[i+1]
+    
+    
+    if (W/Floor > L_trigger){
+      N <- W/L_target
+    }
+  }
+  Guarantees[j-35] <- Floor
+}
+
+mean(ttt>Guarantees)
 ```
 
