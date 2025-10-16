@@ -1,0 +1,306 @@
+---
+title: "CPPI Optimization"
+output: html_document
+date: "2025-10-16"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=10, fig.height=5)
+```
+# Pakker
+```{r}
+library(tidyverse)
+library(frenchdata)
+library(ggplot2)
+library(quadprog)
+library(lubridate)
+library(lpSolve)
+library(xtable)
+```
+
+# Loading data
+```{r message=FALSE}
+data_sets = get_french_data_list() # All the datasets in the package
+
+
+# US stocks
+# Nr 1 er månedlige returns
+# Nr 2 er årlige returns
+ff_3_factors <- download_french_data("Fama/French 3 Factors") # Download of data
+# f_3_factors$subsets$data[[2]] # How to extract dataset
+# browse_details_page(ff_3_factors) # Details of the dataset
+
+
+size_mom_6 <- download_french_data("6 Portfolios Formed on Size and Momentum (2 x 3)")
+size_mom_25 <- download_french_data("25 Portfolios Formed on Size and Momentum (5 x 5)")
+
+# EU stocks in US dollars
+size_mom_6_euro <- download_french_data("6 European Portfolios Formed on Size and Momentum (2 x 3)")
+size_mom_25_euro <- download_french_data("25 European Portfolios Formed on Size and Momentum (5 x 5)")
+
+# Other
+exchange_rate <- read_csv("Data AA/eurofxref-hist.csv")
+
+Exchange_rate_US <- exchange_rate %>% 
+  filter(Date >= "2004-09-01", Date <= "2025-08-31") %>% 
+  select(c("Date", "USD"))
+Exchange_rate_US <- Exchange_rate_US[nrow(Exchange_rate_US):1,]
+
+Exchange_rate_US <- Exchange_rate_US %>% 
+  mutate(Date = floor_date(Date, " month")) %>% 
+  group_by(Date) %>% 
+  summarise(USD = mean(USD))
+
+RF.EU <- read_rds("All_years_ready.rds")
+RF.EU <- select(RF.EU, c("TIME_PERIOD", "return"))
+
+factors <- read_rds("new_factors_all.rds")
+```
+
+# Prerequisit
+```{r}
+All_years <- readRDS("All_years_ready.rds")
+
+EUR_USD <- exchange_rate %>%
+  filter(as.Date(Date) >= as.Date("2004-08-01")) %>%
+  select(Date, USD) %>%
+  mutate(Date = as.Date(Date)) %>%
+  group_by(year = year(Date), month = month(Date)) %>%
+  slice_max(Date, n = 1) %>%   # last date in each month
+  ungroup() %>%
+  arrange(Date)
+EUR_USD <- EUR_USD[1:253,]
+EUR_USD$return <- lag(EUR_USD$USD)/EUR_USD$USD-1
+EUR_USD <- EUR_USD[2:253,]
+
+avg_vw_returns_euro <- size_mom_6_euro$subsets$data[[1]] %>% filter(date >= 200409)
+number_firms_euro <- size_mom_6_euro$subsets$data[[5]] %>% filter(date >= 200409)
+avg_market_cap_euro <- size_mom_6_euro$subsets$data[[6]] %>% filter(date >= 200409)
+
+total_values_euro <- number_firms_euro[,-1] * avg_market_cap_euro[,-1]
+total_market_value_euro <- rowSums(total_values_euro)
+
+avg_vw_returns_euro_eur <- ((1 + avg_vw_returns_euro[,-1]/100) * (1 + EUR_USD$return) - 1) * 100
+
+MKT_EU_EU <- data.frame(
+  date = number_firms_euro$date,  
+  Mkt  = rowSums(avg_vw_returns_euro_eur * total_values_euro) /
+         total_market_value_euro)
+```
+
+# CPPI
+## CPPI Function
+```{r}
+TTM <-  seq(10, 0, -1/12)
+
+CPPI <- function(m,L_target,L_trigger,return_series){
+  Guarantees <- c()
+for (j in 36:124){
+  ZCB_prices <-  All_years %>% 
+    filter(TIME_PERIOD >= All_years$TIME_PERIOD[j] &
+             TIME_PERIOD <= All_years$TIME_PERIOD[j+120]) %>% 
+    mutate(
+    TTM = TTM,
+    z = BETA0 +
+      BETA1 * ((1 - exp(-TTM / TAU1)) / (TTM / TAU1)) +
+      BETA2 * ((1 - exp(-TTM / TAU1)) / (TTM / TAU1) - exp(-TTM / TAU1)) +
+      BETA3 * ((1 - exp(-TTM / TAU2)) / (TTM / TAU2) - exp(-TTM / TAU2)),
+    P_T = exp(-z/100 * TTM))
+  ZCB_prices$P_T[121] <- 1
+  E_returns <- (return_series %>% filter(ym(date) >= All_years$TIME_PERIOD[j]))$return/100
+  
+  W <- 100
+  Floor <- 80
+  C <- W-Floor
+  E <- max(min(m*C,W),0)
+  A <- E
+  etaR <- (W-E)/ZCB_prices$P_T[1]
+  N <- Floor/ZCB_prices$P_T[1]
+  for (i in 1:120){
+    A <- (1+E_returns[i])*A
+    R <- etaR*ZCB_prices$P_T[i+1]
+    W <- A+R
+    Floor <- N*ZCB_prices$P_T[i+1]
+    C <- W-Floor
+    E <- max(min(m*C,W),0)
+    A <- E
+    etaR <- (W-E)/ZCB_prices$P_T[i+1]
+    
+    if (W/Floor > L_trigger){
+      N <- W/L_target
+    }
+  }
+  Guarantees[j-35] <- Floor
+}
+  return(Guarantees)
+}
+```
+
+## function v2
+```{r}
+TTM <-  seq(10, 0, -1/12)
+
+CPPI <- function(m,L_target,L_trigger,return_series){
+  Guarantees <- c()
+for (j in 36:124){
+  # ZCB_prices <-  All_years[j:(j+120),] %>% 
+  #   mutate(
+  #   TTM = TTM,
+  #   z = BETA0 +
+  #     BETA1 * ((1 - exp(-TTM / TAU1)) / (TTM / TAU1)) +
+  #     BETA2 * ((1 - exp(-TTM / TAU1)) / (TTM / TAU1) - exp(-TTM / TAU1)) +
+  #     BETA3 * ((1 - exp(-TTM / TAU2)) / (TTM / TAU2) - exp(-TTM / TAU2)),
+  #   P_T = exp(-z/100 * TTM))
+  # ZCB_prices$P_T[121] <- 1
+  
+  window_data <- All_years[j:(j + 120), ]
+  ZCB_prices <- window_data$BETA0 +
+         window_data$BETA1 * ((1 - exp(-TTM / window_data$TAU1)) / (TTM / window_data$TAU1)) +
+         window_data$BETA2 * (((1 - exp(-TTM / window_data$TAU1)) / (TTM / window_data$TAU1)) - exp(-TTM / window_data$TAU1)) +
+         window_data$BETA3 * (((1 - exp(-TTM / window_data$TAU2)) / (TTM / window_data$TAU2)) - exp(-TTM / window_data$TAU2))
+
+    P_T <- exp(-ZCB_prices/100 * TTM)
+    P_T[121] <- 1 # Manually set the final price to 1.
+  
+  E_returns <- (return_series %>% filter(ym(date) >= All_years$TIME_PERIOD[j]))$return/100
+  
+  W <- 100
+  Floor <- 80
+  C <- W-Floor
+  E <- max(min(m*C,W),0)
+  A <- E
+  etaR <- (W-E)/P_T[1]
+  N <- Floor/P_T[1]
+  for (i in 1:120){
+    A <- (1+E_returns[i])*A
+    R <- etaR*P_T[i+1]
+    W <- A+R
+    Floor <- N*P_T[i+1]
+    C <- W-Floor
+    E <- max(min(m*C,W),0)
+    A <- E
+    etaR <- (W-E)/P_T[i+1]
+    
+    if (W/Floor > L_trigger){
+      N <- W/L_target
+    }
+  }
+  Guarantees[j-35] <- Floor
+}
+  return(Guarantees)
+}
+```
+
+## Analysis
+```{r}
+m <- 1
+L_target <- 125/100
+L_trigger <- 130/100
+returns_choice <- readRDS("returns_choice.rds")
+mkt_EU_period <- MKT_EU_EU %>% filter(date >= 200709 & date <= 202412)
+colnames(mkt_EU_period) <- c("date", "return")
+
+guarantees_choice <- CPPI(m, L_target, L_trigger, returns_choice)
+guarantees_EU_equity <- CPPI(m, L_target, L_trigger, mkt_EU_period)
+
+guarantee_df <- data.frame(date = All_years$TIME_PERIOD[36:124],
+                           "Portfolio 1" = guarantees_choice,
+                           "European Equity" = guarantees_EU_equity)
+
+
+guarantee_df %>% 
+  pivot_longer(cols = -date, names_to = "Portfolio", values_to = "Guarantee") %>% 
+  ggplot(aes(x = as.Date(date), y = Guarantee, color = Portfolio)) +
+    geom_line(size = 1.1) +
+    geom_point(size = 2, alpha = 0.7) +
+    # geom_line(color = "#0072B2", size = 1.1) +
+    # geom_point(color = "#0072B2", size = 2, alpha = 0.7) +
+    scale_color_manual(values = c("Portfolio.1" = "#0072B2", "European.Equity" = "#D55E00"),
+                       breaks=c("Portfolio.1", "European.Equity"),
+                       labels=c("Portfolio 1", "European Equity")) +
+    scale_x_date(date_labels = "%Y", date_breaks = "2 years") +
+    scale_y_continuous(labels = scales::number_format(accuracy = 0.01)) +
+    labs(
+      title = "Development of the Portfolio Guarantee Over Time",
+      subtitle = "Guarantee level implied by CPPI floor mechanism",
+      x = "Date",
+      y = "Guarantee Value"
+    ) +
+    theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
+      plot.subtitle = element_text(size = 11, hjust = 0.5, color = "gray40"),
+      axis.title = element_text(face = "bold"),
+      panel.grid.minor = element_blank(),
+      panel.grid.major.x = element_blank()
+    )
+
+# # Første spike
+# k1 <- which.max(guarantee_df$European.Equity)
+# guarantee_df[k1,]
+# 
+# # anden spike
+# k2 <- which.max(guarantee_df$European.Equity[(k1+5):nrow(guarantee_df)])
+# guarantee_df[k1+4+k2,]
+# 
+# # minimum mellem spikes
+# k3 <- which.min(guarantee_df$European.Equity[k1:(k1+k2)])
+# guarantee_df[k1:(k1+k2),][k3,]
+```
+
+## optimum variables
+```{r, fig.width=10, fig.height=5}
+returns_choice <- readRDS("returns_choice.rds")
+
+m <- c(1, 2, 3, 4, 5)
+L_target <- c(125, 130)/100
+L_trigger <- c(130, 135)/100
+search_grid = expand.grid(m = m, "L_target" = L_target, "L_trigger" = L_trigger)
+search_grid <- sort_by(search_grid, ~list(m, L_target, L_trigger))
+new_names <- apply(search_grid, 1, paste, collapse = "x")
+
+# set1 <- m
+# set2 <- L_target*100
+# set3 <- L_trigger*100
+# all_combinations_df <- expand.grid(set1, set2, set3)
+# new_names <- apply(all_combinations_df, 1, paste, collapse = "x")
+
+guarantees <- array(NA, c(nrow(All_years[36:124,]), nrow(search_grid)))
+for(i in 1:nrow(search_grid)){
+  guarantees[,i] <- CPPI(search_grid[i,1], search_grid[i,2], search_grid[i,3], returns_choice)
+}
+
+plot_df <- as.tibble(guarantees)
+plot_df <- cbind(tibble(date = All_years$TIME_PERIOD[36:124]), plot_df)
+colnames(plot_df) <- c("date", new_names)
+
+plot_df %>% 
+  pivot_longer(cols = -date, names_to = "CPPI_strat", values_to = "Guarantee") %>% 
+  ggplot(aes(x = as.Date(date), y = Guarantee, color = CPPI_strat)) +
+    geom_line(size = 1.1) +
+    geom_point(size = 2, alpha = 0.7) +
+    # geom_line(color = "#0072B2", size = 1.1) +
+    # geom_point(color = "#0072B2", size = 2, alpha = 0.7) +
+    # scale_color_manual(values = c("Portfolio.1" = "#0072B2", "European.Equity" = "#D55E00"),
+    #                    breaks=c("Portfolio.1", "European.Equity"),
+    #                    labels=c("Portfolio 1", "European Equity")) +
+    scale_x_date(date_labels = "%Y", date_breaks = "2 years") +
+    scale_y_continuous(labels = scales::number_format(accuracy = 0.01)) +
+    labs(
+      title = "Development of the Portfolio Guarantee Over Time",
+      subtitle = "Guarantee level implied by CPPI floor mechanism",
+      x = "Date",
+      y = "Guarantee Value"
+    ) +
+  scale_color_viridis_d(option = "cividis") +
+    theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
+      plot.subtitle = element_text(size = 11, hjust = 0.5, color = "gray40"),
+      axis.title = element_text(face = "bold"),
+      panel.grid.minor = element_blank(),
+      panel.grid.major.x = element_blank()
+    )
+
+
+```
