@@ -502,7 +502,7 @@ round(sd(return_rp), 2)-round(sd(return_internal[,k]), 2)
 rp_df <- tibble(
   Date = ym(factors_return_calc$date),
   "Risk parity" = cumulative_return_rp,
-  "Chosen mean variance" = cumulative_return_mv_chosen
+  "Portfolio 1" = cumulative_return_mv_chosen
 )
 
 
@@ -511,7 +511,7 @@ rp_df %>%
   ggplot(aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
     geom_line(linewidth = 1) +
     labs(
-      title = "Cumulative Returns of Risk parity portfolio",
+      title = "Cumulative Returns of Risk parity portfolio and Portfolio 1",
       x = "Date",
       y = "Cumulative Return"
     ) +
@@ -567,7 +567,7 @@ summary_table <- rbind(summary_table, tibble(
 
 
 
-summary_table[2,]
+
 
 
 returns_choice <- tibble(
@@ -575,9 +575,6 @@ returns_choice <- tibble(
   "return" = returns_all$`Portfolio  2`
 )
 
-t(summary_table)
-
-xtable(t(summary_table))
 ```
 
 
