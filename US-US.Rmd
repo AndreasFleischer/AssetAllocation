@@ -724,14 +724,13 @@ for (j in 36:124){
     
     
     if (W/Floor > L_trigger){
-      N <- W/L_target
+      N <- W/(L_target*ZCB_prices$P_T[i+1])
     }
   }
   Guarantees[j-35] <- Floor
 }
   return(Guarantees)
 }
-
 CPPI(m,L_target,L_trigger, MKT_EU_EU)
 ```
 
