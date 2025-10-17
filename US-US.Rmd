@@ -63,7 +63,7 @@ total_market_value <- rowSums(total_values[,-1])
 MKT_US <- data.frame(date = number_firms$date,
                      Mkt = rowSums(avg_vw_returns[,-1]*total_values[,-1])/total_market_value)
 
-true_factors$`Mkt-RF`-round(MKT_US$Mkt,2)
+true_factors$`Mkt-RF`-round(MKT_US$Mkt-true_factors$RF[1:252],2)
 
 summary(lm((MKT_US$Mkt[1:244]-true_factors$RF[1:244])~1))$coefficients*c(1,sqrt(244),1,1)
 ```
@@ -116,7 +116,7 @@ MKT_EU_US <- data.frame(
   Mkt = rowSums(avg_vw_returns_eu * total_values) / total_market_value)
 
 t.test(MKT_EU_US$Mkt)
-summary(lm(MKT_EU_US$Mkt[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
+summary(lm((MKT_EU_US$Mkt[1:244]-All_years$return)~1))$coefficients*c(1,sqrt(244),1,1)
 ```
 # EUR-US (SMB)
 ```{r}
@@ -151,7 +151,7 @@ MKT_EU_EU <- data.frame(
   Mkt  = rowSums(avg_vw_returns_euro_eur * total_values_euro) /
          total_market_value_euro)
 t.test(MKT_EU_EU$Mkt)
-summary(lm(MKT_EU_EU$Mkt[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
+summary(lm((MKT_EU_EU$Mkt[1:244]-All_years$return)~1))$coefficients*c(1,sqrt(244),1,1)
 ```
 # EUR-EU (SMB)
 ```{r}
@@ -427,17 +427,77 @@ ff25_table_eu <- ff25_results_eu %>%
 ff25_table_eu
 round(ff25_table_eu$r.squared,2)
 ```
+# GRS intercept test
+```{r}
+GRS_test <- function(excess_portfolios, reg_data) {
+  # Ensure matrix types
+  R  <- as.matrix(excess_portfolios)        # T x N
+  Ft <- as.matrix(reg_data)                 # T x K
+  
+  Tobs <- nrow(R)
+  N    <- ncol(R)
+  K    <- ncol(Ft)
+  
+  # Add intercept
+  X <- cbind(Intercept = 1, Ft)             # T x (K+1)
+  
+  # OLS for all portfolios in one go
+  # B = (X'X)^(-1) X'R   -> (K+1) x N, first row are alphas
+  XtX <- t(X) %*% X
+  XtX_inv <- solve(XtX + diag(1e-1, ncol(XtX)))  # add small ridge term
+  Bhat    <- XtX_inv %*% t(X) %*% R
+  alpha_hat <- as.vector(Bhat[1, ])         # N x 1
+  # Residuals: E = R - X Bhat
+  E <- R - X %*% Bhat                       # T x N
+  # Residual covariance (unbiased with T-K-1 in denominator)
+  Sigma_e <- (t(E) %*% E) / (Tobs - K - 1)  # N x N
+  
+  # Factor means and covariance
+  fbar <- colMeans(Ft)                      # K x 1
+  Sigma_f <- cov(Ft)                        # K x K (div by T-1)
+  
+  # GRS components
+  A <- t(alpha_hat) %*% solve(Sigma_e) %*% alpha_hat
+  Bterm <- 1 + t(fbar) %*% solve(Sigma_f) %*% fbar
+  GRS <- as.numeric(((Tobs - N - K) / N) * (A / Bterm))
+  
+  # Degrees of freedom & p-value
+  df1 <- N
+  df2 <- Tobs - N - K
+  pval <- 1 - pf(GRS, df1, df2)
+  
+  list(
+    GRS = GRS,
+    df1 = df1,
+    df2 = df2,
+    p_value = pval,
+    alpha = alpha_hat,
+    Sigma_e = Sigma_e
+  )
+}
+
+```
+
+
+
 # Summarize expected surplus and covariance
 ```{r}
-recommended_factors <- data.frame(MKT_US = MKT_EU_US$Mkt[1:244], 
+recommended_factors <- data.frame(MKT_US = MKT_EU_US$Mkt[1:244]-All_years$return, 
                                   MOM_US = MOM_EU_US$MOM[1:244],
-                                  MKT_EU = MKT_EU_EU$Mkt[1:244],
+                                  MKT_EU = MKT_EU_EU$Mkt[1:244]-All_years$return,
                                   SMB_EU = SMB_EU_EU$SMB[1:244],
                                   MOM_EU = MOM_EU_EU$MOM[1:244])
 
 round(colMeans(recommended_factors),3)
 round(cov(recommended_factors),2)
 
+all_factors <- data.frame(MKT_US = MKT_EU_US$Mkt[1:244]-All_years$return,
+                          SMB_US = SMB_EU_US$SMB[1:244],
+                          MOM_US = MOM_EU_US$MOM[1:244],
+                          MKT_EU = MKT_EU_EU$Mkt[1:244]-All_years$return,
+                          SMB_EU = SMB_EU_EU$SMB[1:244],
+                          MOM_EU = MOM_EU_EU$MOM[1:244])
+round(cor(all_factors),2)
 ```
 
 
@@ -447,7 +507,7 @@ SMB_values_eu_us_long <- rowMeans(avg_vw_returns_eu[, 1:3])
 SMB_EU_US_long <- data.frame(date = number_firms$date,
                      SMB = SMB_values_eu_us_long)
 t.test(SMB_EU_US_long$SMB[1:244])
-summary(lm(SMB_EU_US_long$SMB[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
+summary(lm((SMB_EU_US_long$SMB[1:244]-All_years$return)~1))$coefficients*c(1,sqrt(244),1,1)
 ```
 # Long-Only (MOM EU-US)
 ```{r}
@@ -455,7 +515,7 @@ MOM_values_eu_us_long <- avg_vw_returns_eu[,6]
 MOM_EU_US_long <- data.frame(date = number_firms$date,
                      MOM = MOM_values_eu_us_long)
 t.test(MOM_EU_US_long$MOM[1:244])
-summary(lm(MOM_EU_US_long$MOM[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
+summary(lm((MOM_EU_US_long$MOM[1:244]-All_years$return)~1))$coefficients*c(1,sqrt(244),1,1)
 ```
 # Long-Only (SMB EU-EU)
 ```{r}
@@ -463,7 +523,7 @@ SMB_values_eu_eu_long <- rowMeans(avg_vw_returns_euro_eur[, 1:3])
 SMB_EU_EU_long <- data.frame(date = number_firms$date,
                      SMB = SMB_values_eu_eu_long)
 t.test(SMB_EU_EU_long$SMB[1:244])
-summary(lm(SMB_EU_EU_long$SMB[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
+summary(lm((SMB_EU_EU_long$SMB[1:244]-All_years$return)~1))$coefficients*c(1,sqrt(244),1,1)
 ```
 # Long-Only (MOM EU-EU)
 ```{r}
@@ -471,7 +531,7 @@ MOM_values_eu_eu_long <- avg_vw_returns_euro_eur[,6]
 MOM_EU_EU_long <- data.frame(date = number_firms$date,
                      MOM = MOM_values_eu_eu_long)
 t.test(MOM_EU_EU_long$MOM[1:244])
-summary(lm(MOM_EU_EU_long$MOM[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
+summary(lm((MOM_EU_EU_long$MOM[1:244]-All_years$return)~1))$coefficients*c(1,sqrt(244),1,1)
 ```
 
 ```{r}
@@ -487,24 +547,41 @@ reg_data_us <- data.frame(
   MOM = MOM_EU_US_long$MOM) %>%
   filter(date <= 202412) %>%
   mutate(MKTmRF = MKTmRF - All_years$return,
-         RF = All_years$return)
+         RF = All_years$return,
+         SMB = SMB-RF,
+         MOM = MOM-RF)
 
 # The regressions
-ff25_results <- map_dfr(
+ff25_results_us <- map_dfr(
   names(excess_portfolios_us),
   ~ {
     model <- lm(excess_portfolios_us[[.x]] ~ reg_data_us$MKTmRF + reg_data_us$SMB + reg_data_us$MOM)
-    tidy(model) %>%
+    
+    # Coefficients and t-stats
+    coef_df <- tidy(model) %>%
       mutate(
         Portfolio = .x,
         t_stat = estimate / std.error
       ) %>%
       select(Portfolio, term, estimate, t_stat)
+    
+    # R² and adjusted R² — from glance()
+    model_stats <- glance(model) %>%
+      select(r.squared, adj.r.squared)
+    
+    # Add R² columns to every coefficient row (for completeness)
+    coef_df <- coef_df %>%
+      mutate(
+        r.squared = model_stats$r.squared,
+        adj.r.squared = model_stats$adj.r.squared
+      )
+    
+    coef_df
   }
 )
 
-# Arrange nicely
-ff25_results <- ff25_results %>%
+# Clean up and reorder columns
+ff25_results_us <- ff25_results_us %>%
   mutate(term = recode(term,
                        "(Intercept)" = "Alpha",
                        "reg_data_us$MKTmRF" = "MKT",
@@ -512,17 +589,25 @@ ff25_results <- ff25_results %>%
                        "reg_data_us$MOM" = "MOM")) %>%
   arrange(Portfolio, match(term, c("Alpha", "MKT", "SMB", "MOM")))
 
-# (Optional) Pivot wider for a report-style table
-ff25_table <- ff25_results %>%
+# Pivot wider to make a clean report-style table
+ff25_table_us <- ff25_results_us %>%
   tidyr::pivot_wider(
     names_from = term,
     values_from = c(estimate, t_stat),
     names_glue = "{term}_{.value}"
+  ) %>%
+  select(
+    Portfolio,
+    starts_with("Alpha_"),
+    starts_with("MKT_"),
+    starts_with("SMB_"),
+    starts_with("MOM_"),
+    r.squared,
+    adj.r.squared
   )
 
 # View results
-ff25_table
-ff25_table$MOM_t_stat
+ff25_table_us
 ```
 
 
@@ -582,6 +667,14 @@ recommended_factors_long <- data.frame(SMB_US = SMB_EU_EU_long$SMB[1:244]-All_ye
 round(colMeans(recommended_factors_long),3)
 round(cov(recommended_factors_long),3)
 
+all_factors_long <- data.frame(MKT_US = MKT_EU_US$Mkt[1:244]-All_years$return,
+                               SMB_US = SMB_EU_US_long$SMB[1:244],
+                               MOM_US = MOM_EU_US_long$MOM[1:244],
+                               MKT_EU = MKT_EU_EU$Mkt[1:244]-All_years$return,
+                               SMB_EU = SMB_EU_EU_long$SMB[1:244],
+                               MOM_EU = MOM_EU_EU_long$MOM[1:244])
+round(cor(all_factors_long),2)
+round(cov(all_factors_long),2)
 ```
 
 
@@ -731,6 +824,6 @@ for (j in 36:124){
 }
   return(Guarantees)
 }
-CPPI(m,L_target,L_trigger, MKT_EU_EU)
+var(CPPI(14,125/100,130/100, MKT_EU_EU))
 ```
 
