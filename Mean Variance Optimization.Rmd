@@ -65,6 +65,7 @@ factors <- read_rds("new_factors_all.rds")
 # Mean variance
 ## Function to do the optimization
 ```{r}
+solve.QP
 optimize_portfolio <- function(excess_returns, cov_period){
   n_assets <- length(excess_returns)
   
@@ -91,13 +92,13 @@ optimize_internal <- function(excess_returns, cov_period, target_return){
   
   Dmat <- cov_period
   dvec <- rep(0, n_assets)
-  Amat <- cbind(rep(1, n_assets), excess_returns, diag(n_assets))
-  bvec <- c(
-    1,                   # The value for the first constraint (sum(...) = 1)
+  Amat <- cbind(excess_returns, rep(1, n_assets), diag(n_assets))
+  bvec <- c(                   # The value for the first constraint (sum(...) = 1)
     target_return,
+    1,
     rep(0, n_assets)     # The values for the w_i >= 0 constraints
   )
-  meq <- 2
+  meq <- 1
   
   sol<- solve.QP(Dmat = Dmat,
                               dvec = dvec,
@@ -278,6 +279,8 @@ return_internal <- array(NA, c(n, n_internal))
 for(i in 1:n_internal){
   return_internal[,i] <- rowSums(w_internal[i,,]*factors_period[,-1])
 }
+
+rowSums(w_internal[5,,])
 ```
 
 ```{r Uden ad hoc}

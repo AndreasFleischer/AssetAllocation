@@ -142,6 +142,10 @@ TTM <-  seq(10, 0, -1/12)
 
 CPPI <- function(m,L_target,L_trigger,return_series){
   Guarantees <- c()
+  Floor_month <- array(NA, c(120+1, length(36:124)))
+  C_month <- array(NA, c(120+1, length(36:124)))
+  E_month <- array(NA, c(120+1, length(36:124)))
+  W_month <- array(NA, c(120+1, length(36:124)))
 for (j in 36:124){
   # ZCB_prices <-  All_years[j:(j+120),] %>% 
   #   mutate(
@@ -165,9 +169,13 @@ for (j in 36:124){
   E_returns <- (return_series %>% filter(ym(date) >= All_years$TIME_PERIOD[j]))$return/100
   
   W <- 100
+  W_month[1, j-35] <- W
   Floor <- 80
+  Floor_month[1,j-35] <- Floor
   C <- W-Floor
+  C_month[1,j-35] <- C
   E <- max(min(m*C,W),0)
+  E_month[1, j-35] <- E
   A <- E
   etaR <- (W-E)/P_T[1]
   N <- Floor/P_T[1]
@@ -175,9 +183,13 @@ for (j in 36:124){
     A <- (1+E_returns[i])*A
     R <- etaR*P_T[i+1]
     W <- A+R
+    W_month[i+1, j-35] <- W
     Floor <- N*P_T[i+1]
+    Floor_month[i+1, j-35] <- Floor
     C <- W-Floor
+    C_month[i+1, j-35] <- C
     E <- max(min(m*C,W),0)
+    E_month[i+1, j-35] <- E
     A <- E
     etaR <- (W-E)/P_T[i+1]
     
@@ -187,7 +199,7 @@ for (j in 36:124){
   }
   Guarantees[j-35] <- Floor
 }
-  return(Guarantees)
+  return(list("Guarantees" = Guarantees, "Floor" = Floor_month, "C" = C_month, "W" = W_month, "E" = E_month))
 }
 ```
 
@@ -321,10 +333,11 @@ guarantee_df %>%
 ```{r, fig.width=10, fig.height=5}
 returns_choice <- readRDS("returns_choice.rds")
 
-m <- c(1, 2, 3, 4, 5)
-L_target <- c(125, 130)/100
-L_trigger <- c(130, 135)/100
-search_grid = expand.grid(m = m, "L_target" = L_target, "L_trigger" = L_trigger)
+m <- seq(1, 5, 0.5)
+L_target <- seq(120, 140, 5)/100
+L_trigger <- seq(125, 145, 5)/100
+search_grid = expand.grid(m = m, "L_target" = L_target, "L_trigger" = L_trigger) %>% 
+  filter(L_target < L_trigger)
 search_grid <- sort_by(search_grid, ~list(m, L_target, L_trigger))
 new_names <- apply(search_grid, 1, paste, collapse = "x")
 
@@ -334,12 +347,14 @@ new_names <- apply(search_grid, 1, paste, collapse = "x")
 # all_combinations_df <- expand.grid(set1, set2, set3)
 # new_names <- apply(all_combinations_df, 1, paste, collapse = "x")
 
-guarantees <- array(NA, c(nrow(All_years[36:124,]), nrow(search_grid)))
+guarantees <- vector(mode = "list", length = nrow(search_grid))
 for(i in 1:nrow(search_grid)){
-  guarantees[,i] <- CPPI(search_grid[i,1], search_grid[i,2], search_grid[i,3], returns_choice)
+  guarantees[[i]] <- CPPI(search_grid[i,1], search_grid[i,2], search_grid[i,3], returns_choice)
 }
+names(guarantees) <- new_names
 
-plot_df <- as.tibble(guarantees)
+
+plot_df <- as.tibble(map(guarantees, 1))
 plot_df <- cbind(tibble(date = All_years$TIME_PERIOD[36:124]), plot_df)
 colnames(plot_df) <- c("date", new_names)
 
@@ -368,8 +383,8 @@ plot_df %>%
       plot.subtitle = element_text(size = 11, hjust = 0.5, color = "gray40"),
       axis.title = element_text(face = "bold"),
       panel.grid.minor = element_blank(),
-      panel.grid.major.x = element_blank()
+      panel.grid.major.x = element_blank(),
+      legend.position = "none"
     )
-
 
 ```
