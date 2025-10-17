@@ -127,7 +127,7 @@ for (j in 36:124){
     etaR <- (W-E)/ZCB_prices$P_T[i+1]
     
     if (W/Floor > L_trigger){
-      N <- W/L_target
+      N <- W/(L_target*P_T[i+1])
     }
   }
   Guarantees[j-35] <- Floor
@@ -182,7 +182,7 @@ for (j in 36:124){
     etaR <- (W-E)/P_T[i+1]
     
     if (W/Floor > L_trigger){
-      N <- W/L_target
+      N <- W/(L_target*P_T[i+1])
     }
   }
   Guarantees[j-35] <- Floor
@@ -206,7 +206,6 @@ guarantees_EU_equity <- CPPI(m, L_target, L_trigger, mkt_EU_period)
 guarantee_df <- data.frame(date = All_years$TIME_PERIOD[36:124],
                            "Portfolio 1" = guarantees_choice,
                            "European Equity" = guarantees_EU_equity)
-
 
 guarantee_df %>% 
   pivot_longer(cols = -date, names_to = "Portfolio", values_to = "Guarantee") %>% 
@@ -247,6 +246,76 @@ guarantee_df %>%
 # k3 <- which.min(guarantee_df$European.Equity[k1:(k1+k2)])
 # guarantee_df[k1:(k1+k2),][k3,]
 ```
+
+<!-- ```{r} -->
+<!-- m <- 1 -->
+<!-- L_target <- 125/100 -->
+<!-- L_trigger <- 130/100 -->
+<!-- returns_choice <- readRDS("returns_choice.rds") -->
+<!-- mkt_EU_period <- MKT_EU_EU %>% filter(date >= 200709 & date <= 202412) -->
+<!-- colnames(mkt_EU_period) <- c("date", "return") -->
+
+<!-- guarantees_choice <- CPPI(m, L_target, L_trigger, returns_choice) -->
+<!-- guarantees_EU_equity <- CPPI(m, L_target, L_trigger, mkt_EU_period) -->
+
+<!-- RF.EU_period <- filter(RF.EU, TIME_PERIOD >= ym(200708) & TIME_PERIOD <= ym(201501)) -->
+
+<!-- guarantee_df <- data.frame(date = All_years$TIME_PERIOD[36:124], -->
+<!--                            "Portfolio 1" = guarantees_choice, -->
+<!--                            "European Equity" = guarantees_EU_equity, -->
+<!--                            "RF" = RF.EU_period$return) -->
+
+<!-- max_primary <- max(c(guarantee_df$Portfolio.1, guarantee_df$European.Equity)) -->
+<!-- max_secondary <- max(guarantee_df$RF) -->
+<!-- scaling_factor <- max_primary / max_secondary -->
+
+
+
+<!-- guarantee_df %>%  -->
+<!--   # pivot_longer(cols = -date, names_to = "Portfolio", values_to = "Guarantee") %>%  -->
+<!--   ggplot(aes(x = as.Date(date))) + -->
+<!--     geom_line(aes(y = Portfolio.1, color = "Portfolio 1"), linewidth = 1) + -->
+<!--     geom_line(aes(y = European.Equity, color = "European Equity"), linewidth = 1) + -->
+<!--     geom_line(aes(y = RF * scaling_factor, color = "European risk free rate"), linewidth = 1) + -->
+
+<!--     # scale_color_manual(values = c("Portfolio.1" = "#0072B2", "European.Equity" = "#D55E00"), -->
+<!--     #                    breaks=c("Portfolio.1", "European.Equity"), -->
+<!--     #                    labels=c("Portfolio 1", "European Equity")) + -->
+<!--     scale_x_date(date_labels = "%Y", date_breaks = "2 years") + -->
+<!--     scale_y_continuous(labels = scales::number_format(accuracy = 0.01), -->
+<!--                        name = "CPPI Portfolio Value", -->
+<!--                         sec.axis = sec_axis( -->
+<!--                           trans = ~ . / scaling_factor, -->
+<!--                           name = "Risk-Free Rate" -->
+<!--                         )) + -->
+<!--     labs( -->
+<!--       title = "Development of the Portfolio Guarantee Over Time", -->
+<!--       subtitle = "Guarantee level implied by CPPI floor mechanism", -->
+<!--       x = "Date", -->
+<!--       y = "Guarantee Value" -->
+<!--     ) + -->
+<!--     theme_minimal(base_size = 13) + -->
+<!--     theme( -->
+<!--       plot.title = element_text(face = "bold", size = 15, hjust = 0.5), -->
+<!--       plot.subtitle = element_text(size = 11, hjust = 0.5, color = "gray40"), -->
+<!--       axis.title = element_text(face = "bold"), -->
+<!--       panel.grid.minor = element_blank(), -->
+<!--       panel.grid.major.x = element_blank() -->
+<!--     ) -->
+
+<!-- # # Første spike -->
+<!-- # k1 <- which.max(guarantee_df$European.Equity) -->
+<!-- # guarantee_df[k1,] -->
+<!-- #  -->
+<!-- # # anden spike -->
+<!-- # k2 <- which.max(guarantee_df$European.Equity[(k1+5):nrow(guarantee_df)]) -->
+<!-- # guarantee_df[k1+4+k2,] -->
+<!-- #  -->
+<!-- # # minimum mellem spikes -->
+<!-- # k3 <- which.min(guarantee_df$European.Equity[k1:(k1+k2)]) -->
+<!-- # guarantee_df[k1:(k1+k2),][k3,] -->
+
+<!-- ``` -->
 
 ## optimum variables
 ```{r, fig.width=10, fig.height=5}

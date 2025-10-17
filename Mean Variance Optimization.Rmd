@@ -379,6 +379,7 @@ return_max_return[k]
 # return for perioden
 cumulative_return_min_var <- (cumprod(1+return_min_var/100)-1)*100
 cumulative_return_max_return <- (cumprod(1+return_max_return/100)-1)*100
+cumulative_return_market <- (cumprod(1+factors_period$MKT_EU_EU/100)-1)*100
 
 cumulative_return_min_var[k]/n
 cumulative_return_max_return[k]/n
@@ -389,7 +390,8 @@ sd(return_max_return)
 cumulative_return_df <- tibble(
   "Date" = factors_period$date,
   "Min_var" = cumulative_return_min_var,
-  "Max_return" = cumulative_return_max_return
+  "Max_return" = cumulative_return_max_return,
+  "Current_strategy" =  cumulative_return_market
 )
 
 cumulative_return_df %>% 
@@ -402,9 +404,41 @@ cumulative_return_df %>%
     ylab("Cumulative returns") +
     scale_color_manual(
       name = "Portfolio Type",
-      labels = c("Maximum Return", "Minimum Variance"),
-      values = c("Max_return" = "black", "Min_var" = "red3") 
+      breaks = c("Max_return", "Min_var", "Current_strategy"),
+      labels = c("Maximum Return", "Minimum Variance", "Current strategy"),
+      values = c("Max_return" = "#0072B2", "Min_var" = "#D55E00", "Current_strategy" = "#009E73") 
     )
+
+
+Breaks = c("Max_return", "Min_var", "Current_strategy")
+labels = c("Maximum Return", "Minimum Variance", "European equity")
+values = c("Max_return" = "#0072B2", "Min_var" = "#D55E00", "Current_strategy" = "#009E73")
+
+cumulative_return_df %>% 
+  pivot_longer(cols = -Date, names_to = "Portfolio", values_to = "Cumulative_return") %>% 
+  mutate(Date = ym(Date)) %>% 
+ggplot(aes(x = Date, y = Cumulative_return, color = Portfolio)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(
+      name = "Portfolio",
+      breaks = Breaks,
+      labels = labels,
+      values =  values
+    ) +
+  labs(
+    title = "Cumulative Returns",
+    #subtitle = "",
+    x = "Date",
+    y = "Cumulative Return",
+    color = "Portfolio"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12),
+    legend.position = "right",
+    legend.title = element_text(face = "bold")
+  )
 ```
 
 #### Whole frontier
@@ -417,10 +451,11 @@ for(i in 1:n_internal){
 cumulative_return_df <- data.frame(
   cumulative_return_min_var,
   cumulative_return_internal,
-  cumulative_return_max_return
+  cumulative_return_max_return,
+  cumulative_return_market
 )
 
-new_names <- c("Minimum variance", paste("point", 1:5), "max return")
+new_names <- c("Minimum variance", paste("point", 1:5), "Maximum return", "European Equity")
 
 colnames(cumulative_return_df) <- new_names
 
@@ -435,8 +470,8 @@ plot_data <- cumulative_return_df %>%
   mutate(Portfolio = factor(Portfolio, levels = new_names))
 
 ggplot(plot_data, aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
-  geom_line(linewidth = 0.5) +
-  scale_color_viridis_d(option = "cividis") +
+  geom_line(linewidth = 0.7) +
+  scale_color_viridis_d(option = "viridis") +
   labs(
     title = "Cumulative Returns of Efficient Frontier Portfolios",
     subtitle = "Performance of portfolios from Minimum Variance to Maximum Return",
@@ -501,15 +536,25 @@ round(sd(return_rp), 2)-round(sd(return_internal[,k]), 2)
 
 rp_df <- tibble(
   Date = ym(factors_return_calc$date),
-  "Risk parity" = cumulative_return_rp,
-  "Portfolio 1" = cumulative_return_mv_chosen
+  "Risk_parity" = cumulative_return_rp,
+  "Portfolio_1" = cumulative_return_mv_chosen,
+  "Current_strategy" =  cumulative_return_market
 )
 
+Breaks = c("Risk_parity", "Portfolio_1", "Current_strategy")
+labels = c("Risk parity", "Portfolio 1", "European Equity")
+values = c("Risk_parity" = "#0072B2", "Portfolio_1" = "#D55E00", "Current_strategy" = "#009E73")
 
 rp_df %>% 
   pivot_longer(cols = -Date, names_to = "Portfolio", values_to = "Cumulative_Return") %>% 
   ggplot(aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
     geom_line(linewidth = 1) +
+    scale_color_manual(
+        name = "Portfolio",
+        breaks = Breaks,
+        labels = labels,
+        values =  values
+      ) +
     labs(
       title = "Cumulative Returns of Risk parity portfolio and Portfolio 1",
       x = "Date",
@@ -525,6 +570,8 @@ rp_df %>%
 
 # df <- tibble(date = factors_return_calc$date, return = return_internal[,1])
 # saveRDS(df, "returns_choice.rds")
+
+
 ```
 
 ```{r}
@@ -617,7 +664,7 @@ rp_df %>%
       legend.title = element_text(face = "bold")
     )
 
-
+sd(factors_period$MKT_EU_EU)
 ```
 
 
