@@ -65,13 +65,12 @@ factors <- read_rds("new_factors_all.rds")
 # Mean variance
 ## Function to do the optimization
 ```{r}
-solve.QP
 optimize_portfolio <- function(excess_returns, cov_period){
   n_assets <- length(excess_returns)
   
   Dmat <- cov_period
   dvec <- rep(0, n_assets)
-  Amat <- cbind(rep(1, n_assets), diag(n_assets))
+  Amat <- cbind(c(1, 0, 0, 1 , 0, 0, 1), c(rep(0, 6), 1))
   bvec <- c(
     1,                   # The value for the first constraint (sum(...) = 1)
     rep(0, n_assets)     # The values for the w_i >= 0 constraints
@@ -127,6 +126,76 @@ optimize_return <- function(excess_returns){
   return(solution$solution)
 }
 
+
+
+```
+
+
+```{r}
+optimize_portfolio <- function(excess_returns, cov_period){
+  n_assets <- length(excess_returns)
+  
+  Dmat <- cov_period
+  dvec <- rep(0, n_assets)
+  Amat <- cbind(c(1, 0, 0, 1 , 0, 0, 1), c(rep(0, 6), 1))
+  bvec <- c(
+    1,                   # The value for the first constraint (sum(...) = 1)
+    0     # The values for the w_i >= 0 constraints
+  )
+  meq <- 1
+  
+  sol<- solve.QP(Dmat = Dmat,
+                              dvec = dvec,
+                              Amat = Amat,
+                              bvec = bvec,
+                              meq = meq)
+  w <- sol$solution/sum(sol$solution)
+  return(w)
+}
+
+optimize_internal <- function(excess_returns, cov_period, target_return){
+  n_assets <- length(excess_returns)
+  
+  Dmat <- cov_period
+  dvec <- rep(0, n_assets)
+  Amat <- cbind(excess_returns, c(1, 0, 0, 1 , 0, 0, 1), c(rep(0, 6), 1))
+  bvec <- c(                   # The value for the first constraint (sum(...) = 1)
+    target_return,
+    1,
+    0     # The values for the w_i >= 0 constraints
+  )
+  meq <- 2
+  
+  sol<- solve.QP(Dmat = Dmat,
+                              dvec = dvec,
+                              Amat = Amat,
+                              bvec = bvec,
+                              meq = meq)
+  w <- sol$solution/sum(sol$solution)
+  return(w)
+}
+
+
+optimize_return <- function(excess_returns){
+  n_assets <- length(excess_returns)
+  objective.in <- excess_returns
+  const.mat <- matrix(c(1, 0, 0, 1, 0, 0, 1, rep(0, n_assets-1), 1), nrow = 2, ncol = 7, byrow = TRUE)
+  const.dir <- c("==", ">=")
+  const.rhs <- c(1, 0)
+  
+  solution <- lp(
+    direction = "max",
+    objective.in = objective.in,
+    const.mat = const.mat,
+    const.dir = const.dir,
+    const.rhs = const.rhs
+  )
+  return(solution$solution)
+}
+
+
+t <- factors_excess_return
+t <- cbind(t, RF.EU %>% filter(TIME_PERIOD >= ym(200409) & TIME_PERIOD <= ym(202501)) %>% select(return))
 
 
 ```
@@ -281,6 +350,8 @@ for(i in 1:n_internal){
 }
 
 rowSums(w_internal[5,,])
+
+saveRDS(target_returns[,1], file = "target_returns_portfolio_1.rds")
 ```
 
 ```{r Uden ad hoc}
