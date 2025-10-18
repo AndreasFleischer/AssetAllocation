@@ -442,6 +442,7 @@ for(i in 1:n_internal){
 
 ## max return target variance
 ```{r}
+# factors ligger i US-US
 all_factors <- data.frame(date = factors$date,
                           MKT_US = MKT_EU_US$Mkt[1:244],
                           SMB_US = SMB_EU_US$SMB[1:244],
