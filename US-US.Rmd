@@ -3,6 +3,8 @@ title: "USA-USA"
 author: "Andreas Fleischer"
 date: "2025-10-10"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -825,5 +827,121 @@ for (j in 36:124){
   return(Guarantees)
 }
 var(CPPI(14,125/100,130/100, MKT_EU_EU))
+```
+
+# Efficient frontier plot
+```{r}
+library(ggplot2)
+
+# === Example inputs ===
+mu <- c(0.08, 0.12)  # expected returns
+Sigma <- matrix(c(0.04^2, 0.04*0.06*0.5,
+                  0.04*0.06*0.5, 0.06^2), nrow = 2)
+
+# === Analytical Global Minimum Variance Portfolio (GMVP) ===
+one <- rep(1, 2)
+w_gmv <- solve(Sigma) %*% one / as.numeric(t(one) %*% solve(Sigma) %*% one)
+w_gmv <- as.vector(w_gmv)
+w_gmv <- pmax(pmin(w_gmv, 1), 0)  # enforce 0 <= w <= 1
+w_gmv <- w_gmv / sum(w_gmv)
+
+# === Compute efficient frontier (no short-selling) ===
+w1 <- seq(w_gmv[1], 0, length.out = 100)
+w2 <- 1 - w1
+
+port_return <- w1 * mu[1] + w2 * mu[2]
+port_sd <- sqrt(w1^2 * Sigma[1,1] + w2^2 * Sigma[2,2] + 2 * w1 * w2 * Sigma[1,2])
+ef <- data.frame(SD = port_sd, Return = port_return)
+ef <- ef[order(ef$SD), ]
+
+# === Mark GMV and Max Return ===
+gmv_point <- data.frame(SD = sqrt(t(w_gmv) %*% Sigma %*% w_gmv),
+                        Return = sum(w_gmv * mu),
+                        Label = "GMV")
+
+max_point <- data.frame(SD = sqrt(Sigma[2,2]),
+                        Return = mu[2],
+                        Label = "Max Return")
+
+# === Plot ===
+ggplot(ef, aes(x = SD, y = Return)) +
+  geom_path(color = "#1f77b4", size = 1.4, lineend = "round") +
+  geom_point(data = gmv_point, aes(x = SD, y = Return), color = "darkred", size = 3.5) +
+  geom_point(data = max_point, aes(x = SD, y = Return), color = "darkgreen", size = 3.5) +
+  geom_text(data = gmv_point, aes(label = Label), nudge_x = -0.001, nudge_y = 0.001, size = 3) +
+  geom_text(data = max_point, aes(label = Label), nudge_x = -0.002, nudge_y = 0.002, size = 3) +
+  labs(
+    x = expression(sigma),
+    y = expression(mu)
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text = element_blank(),          # remove tick labels
+    axis.ticks = element_blank(),         # remove ticks
+    panel.grid = element_blank(),         # remove background grid
+    axis.line = element_line(color = "black", linewidth = 0.6),  # add clean axes
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.title.y = element_text(angle = 0, vjust = 0.5)  # rotate μ clockwise
+  )
+
+```
+
+# Efficient Frontier plot extended
+```{r}
+library(ggplot2)
+
+# Example data
+mu <- c(0.08, 0.12)
+Sigma <- matrix(c(0.04^2, 0.04*0.06*0.5,
+                  0.04*0.06*0.5, 0.06^2), nrow = 2)
+
+# Grid of weights
+w1 <- seq(0, 1, length.out = 200)
+w2 <- 1 - w1
+port_return <- w1 * mu[1] + w2 * mu[2]
+port_sd <- sqrt(w1^2 * Sigma[1,1] + w2^2 * Sigma[2,2] + 2 * w1 * w2 * Sigma[1,2])
+ef <- data.frame(SD = port_sd, Return = port_return)
+ef <- ef[order(ef$SD), ]
+
+# Identify Global Minimum Variance (GMV) portfolio
+one <- rep(1, 2)
+w_gmv <- solve(Sigma) %*% one / as.numeric(t(one) %*% solve(Sigma) %*% one)
+w_gmv <- as.vector(w_gmv)
+gmv_return <- sum(w_gmv * mu)
+gmv_sd <- sqrt(t(w_gmv) %*% Sigma %*% w_gmv)
+
+# Keep only efficient (upper) part of the frontier
+ef_efficient <- ef[ef$Return >= gmv_return, ]
+
+# GMV and Max Return points
+gmv_point <- data.frame(SD = gmv_sd, Return = gmv_return, Label = "GMV")
+max_point <- ef_efficient[which.max(ef_efficient$Return), ]
+max_point$Label <- "Max Return"
+
+# 5 equidistant points (in expected return)
+intermediate_returns <- seq(gmv_return, max_point$Return, length.out = 7)[2:6]
+inter_points <- data.frame(Return = intermediate_returns)
+inter_points$SD <- approx(ef_efficient$Return, ef_efficient$SD, xout = inter_points$Return)$y
+inter_points$Label <- paste("Portfolio", 1:5)
+
+# Combine all points
+points_df <- rbind(gmv_point, inter_points, max_point)
+
+# Plot
+ggplot(ef_efficient, aes(x = SD, y = Return)) +
+  geom_path(color = "#1f77b4", size = 1.4, lineend = "round") +
+  geom_point(data = points_df, aes(x = SD, y = Return), color = "darkred", size = 3.5) +
+  geom_text(data = points_df, aes(label = Label),
+            nudge_y = 0.001, nudge_x = -0.002, size = 3, vjust = -0.5) +
+  labs(x = expression(sigma), y = expression(mu)) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.6),
+    axis.title.y = element_text(angle = 0, vjust = 0.5)
+  )
+
 ```
 
