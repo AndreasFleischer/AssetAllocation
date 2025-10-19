@@ -331,35 +331,36 @@ guarantee_df %>%
 
 ## optimum variables
 ```{r, fig.width=10, fig.height=5}
-returns_choice <- readRDS("returns_choice.rds")
+# returns_choice <- readRDS("returns_choice.rds")
+# 
+# m <- seq(1, 20, 0.5)
+# L_target <- seq(105, 200, 5)/100
+# L_trigger <- seq(110, 205, 5)/100
+# search_grid = expand.grid(m = m, "L_target" = L_target, "L_trigger" = L_trigger) %>% 
+#   filter(L_target < L_trigger)
+# search_grid <- sort_by(search_grid, ~list(m, L_target, L_trigger))
+# new_names <- apply(search_grid, 1, paste, collapse = "x")
+# 
+# # set1 <- m
+# # set2 <- L_target*100
+# # set3 <- L_trigger*100
+# # all_combinations_df <- expand.grid(set1, set2, set3)
+# # new_names <- apply(all_combinations_df, 1, paste, collapse = "x")
+# 
+# guarantees <- vector(mode = "list", length = nrow(search_grid))
+# for(i in 1:nrow(search_grid)){
+#   guarantees[[i]] <- CPPI(search_grid[i,1], search_grid[i,2], search_grid[i,3], returns_choice)
+# }
+# names(guarantees) <- new_names
 
-m <- seq(1, 5, 0.5)
-L_target <- seq(120, 140, 5)/100
-L_trigger <- seq(125, 145, 5)/100
-search_grid = expand.grid(m = m, "L_target" = L_target, "L_trigger" = L_trigger) %>% 
-  filter(L_target < L_trigger)
-search_grid <- sort_by(search_grid, ~list(m, L_target, L_trigger))
-new_names <- apply(search_grid, 1, paste, collapse = "x")
-
-# set1 <- m
-# set2 <- L_target*100
-# set3 <- L_trigger*100
-# all_combinations_df <- expand.grid(set1, set2, set3)
-# new_names <- apply(all_combinations_df, 1, paste, collapse = "x")
-
-guarantees <- vector(mode = "list", length = nrow(search_grid))
-for(i in 1:nrow(search_grid)){
-  guarantees[[i]] <- CPPI(search_grid[i,1], search_grid[i,2], search_grid[i,3], returns_choice)
-}
-names(guarantees) <- new_names
-
+# guarantees <- readRDS("E:/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI strats.rds")
 
 plot_df <- as.tibble(map(guarantees, 1))
 plot_df <- cbind(tibble(date = All_years$TIME_PERIOD[36:124]), plot_df)
 colnames(plot_df) <- c("date", new_names)
 
-plot_df %>% 
-  pivot_longer(cols = -date, names_to = "CPPI_strat", values_to = "Guarantee") %>% 
+plot_df %>%
+  pivot_longer(cols = -date, names_to = "CPPI_strat", values_to = "Guarantee") %>%
   ggplot(aes(x = as.Date(date), y = Guarantee, color = CPPI_strat)) +
     geom_line(size = 1.1) +
     geom_point(size = 2, alpha = 0.7) +
@@ -388,3 +389,56 @@ plot_df %>%
     )
 
 ```
+
+### Shortfall plot
+```{r}
+B <- map(guarantees, 3)
+K <- map(guarantees, 1)
+
+# Rækker er start på periode
+# Søjler er parameter kombination
+# short_fall er andelen af alle perioder, hvor man falder under floor
+short_fall <- array(NA, dim = c(ncol(B[[1]]), length(B)))
+guarantees_m <- rep(NA, length(K))
+
+for(i in 1:length(B)){
+  short_fall[,i] <- (colSums(B[[i]] <= 0) > 0)
+  guarantees_m[i] <- mean(K[[i]])
+}
+
+indices_m <- array(NA, c(210, length(m)))
+check_m <- paste(m, "x", sep = "")
+for(i in 1:length(m)){
+  indices_m[,i] <- which(startsWith(new_names, check_m[i]))
+}
+
+A <- colMeans(short_fall)
+dim(indices_m)
+
+short_fall_df <- matrix(A[indices_m], nrow = nrow(indices_m), ncol = ncol(indices_m), byrow = FALSE)
+short_fall_df <- as.tibble(short_fall_df)
+
+
+guarantees_m_df <- matrix(guarantees_m[indices_m], nrow = nrow(indices_m), ncol = ncol(indices_m), byrow = FALSE)
+guarantees_m_df <- as.tibble(guarantees_m_df)
+
+colnames(short_fall_df) <- m
+colnames(guarantees_m_df) <- m
+guarantees_m_plot_df <- guarantees_m_df %>% 
+  pivot_longer(cols = everything(), names_to = "m", values_to = "Guarantee") %>% 
+  group_by(m) %>% 
+  summarise("Mean_guarantee" = mean(Guarantee))
+
+short_fall_df %>% 
+  pivot_longer(cols = everything(), names_to = "m", values_to = "Short_fall_prop") %>%
+  group_by(m) %>% 
+  summarise(short_fall_prop_m = mean(Short_fall_prop)) %>% 
+  left_join(guarantees_m_plot_df, by = "m") %>% 
+  ggplot(aes(as.numeric(m), short_fall_prop_m)) +
+    geom_point()  
+
+# Tommelfinger regel til at bestemme m
+1/(-min(rowSums(factors_period[,-1]))/100)
+
+```
+
