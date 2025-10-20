@@ -457,7 +457,7 @@ returns_choice <- readRDS("returns_choice.rds")
 
 # m <- seq(1, 20, 0.5)
 m <- 7
-L_target <- seq(105, 200, 2)/100
+L_target <- seq(105, 175, 2)/100
 L_trigger <- seq(110, 205, 2)/100
 search_grid = expand.grid(m = m, "L_target" = L_target, "L_trigger" = L_trigger) %>%
   filter(L_target < L_trigger & L_trigger - L_target <= 0.3)
@@ -504,8 +504,118 @@ Trigger_hit <- map(guarantees_trigger_target, "Trigger_hit")
 
 Trigger_hit_df <- as.tibble(lapply(Trigger_hit, colSums))
 
-colMeans(Trigger_hit_df)
+plot_data <- Trigger_hit_df %>%
+  select(starts_with("7x1.31x")) %>%
+  summarise(across(everything(), ~ mean(., na.rm = TRUE))) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "ColumnName",
+    values_to = "MeanValue"
+  )
 
+ggplot(plot_data, aes(x = ColumnName, y = MeanValue)) +
+  geom_col(fill = "steelblue") +
+  labs(
+    title = "Mean Value for Columns Starting with '7x1.25x'",
+    x = "Column Name",
+    y = "Calculated Mean"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+tibble(date = filter(All_years, TIME_PERIOD >= as.Date("2004-09-01") & TIME_PERIOD <= as.Date("2014-09-01"))$TIME_PERIOD, "Trigger_hit" = Trigger_hit$"7x1.25x1.36"[,24]) %>% 
+  ggplot(aes(date, Trigger_hit)) +
+    geom_point()
+
+
+#ddddddd
+pattern_names <- c("7x1.15", "7x1.21", "7x1.25", "7x1.31", "7x1.35")
+
+Trigger_hit_sub <- Trigger_hit_df %>% 
+  select(starts_with(pattern_names))
+
+enframe(colMeans(Trigger_hit_sub), name = "name_str", value = "Trigger_hit_mean") %>%
+  extract(
+    name_str, 
+    into = c("m", "Target", "Trigger"),
+    regex = "([\\d\\.]+)x([\\d\\.]+)x([\\d\\.]+)", 
+    convert = TRUE
+  ) %>%
+  mutate(x_diff = Trigger - Target) %>% 
+  ggplot(aes(x = x_diff, y = Trigger_hit_mean, color = factor(Target))) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  # geom_col(position = "dodge") +
+  labs(
+    title = "Trigger Hit Mean vs. Difference",
+    subtitle = "Grouped by Target Value",
+    x = "X Difference (Trigger - Target)",
+    y = "Trigger Hit Mean",
+    color = "Target"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5)
+  )
+    ```
+### target
+```{r}
+guarantees_target <- map(guarantees_trigger_target, "Guarantees")
+
+guarantees_target_mean <- sapply(guarantees_target, mean)
+enframe(guarantees_target_mean, name = "name_str", value = "guarantees") %>%
+  extract(
+    name_str, 
+    into = c("m", "Target", "Trigger"),
+    regex = "([\\d\\.]+)x([\\d\\.]+)x([\\d\\.]+)", 
+    convert = TRUE
+  ) %>% 
+  group_by(Target) %>% 
+  summarise(guarantees_target = mean(guarantees)) %>% 
+  ggplot(aes(Target, guarantees_target)) +
+    geom_line() +
+    geom_vline(xintercept = 1.34) +
+    annotate(
+      "text",
+      x = 1.34,
+      y = Inf,
+      label = "Target = 1.34",
+      vjust = 2,
+      hjust = -0.2,
+      color = "blue"
+    ) +
+  ggtitle("Average guarantee for each target level")
+```
+
+### Trigger
+```{r}
+guarantees_trigger <- map(guarantees_trigger_target, "Guarantees")
+
+guarantees_trigger_mean <- sapply(guarantees_trigger, mean)
+enframe(guarantees_target_mean, name = "name_str", value = "guarantees") %>%
+  extract(
+    name_str, 
+    into = c("m", "Target", "Trigger"),
+    regex = "([\\d\\.]+)x([\\d\\.]+)x([\\d\\.]+)", 
+    convert = TRUE
+  ) %>%
+  filter(Target == 1.35) %>% 
+  group_by(Target) %>% 
+  ggplot(aes(Trigger, guarantees)) +
+    geom_line() +
+    geom_vline(xintercept = 1.46) +
+      annotate(
+      "text",
+      x = 1.46,
+      y = Inf,
+      label = "Trigger = 1.46",
+      vjust = 2,
+      hjust = -0.1,
+      color = "blue"
+    ) +
+  ggtitle("Average guarantee for each trigger level")
 ```
 
 
