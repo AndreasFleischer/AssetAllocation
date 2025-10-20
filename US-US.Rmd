@@ -948,3 +948,4 @@ ggplot(ef_efficient, aes(x = SD, y = Return)) +
 
 ```
 
+# Opgave 1f
