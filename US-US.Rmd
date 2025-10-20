@@ -481,7 +481,6 @@ GRS_test <- function(excess_portfolios, reg_data) {
     Sigma_e = Sigma_e
   )
 }
-
 ```
 
 
@@ -790,6 +789,7 @@ m <- 1
 
 CPPI <- function(m,L_target,L_trigger,return_series){
   Guarantees <- c()
+  I_Guarantees <- c()
 for (j in 36:124){
   ZCB_prices <-  All_years %>% 
     filter(TIME_PERIOD >= All_years$TIME_PERIOD[j] &
@@ -802,11 +802,12 @@ for (j in 36:124){
       BETA3 * ((1 - exp(-TTM / TAU2)) / (TTM / TAU2) - exp(-TTM / TAU2)),
     P_T = exp(-z/100 * TTM))
   ZCB_prices$P_T[121] <- 1
-  E_returns <- (return_series %>% filter(ym(date) >= All_years$TIME_PERIOD[j]))$Mkt/100
+  E_returns <- unlist((return_series %>% filter(ym(date) >= All_years$TIME_PERIOD[j]))[,2])/100
   
   W <- 100
-  Floor <- 80
+  Floor <- W/L_target
   C <- W-Floor
+  I_Guarantees[j-35] <- Floor/ZCB_prices$P_T[1]
   E <- max(min(m*C,W),0)
   A <- E
   etaR <- (W-E)/ZCB_prices$P_T[1]
@@ -821,17 +822,26 @@ for (j in 36:124){
     A <- E
     etaR <- (W-E)/ZCB_prices$P_T[i+1]
     
-    
     if (W/Floor > L_trigger){
       N <- W/(L_target*ZCB_prices$P_T[i+1])
     }
   }
-  Guarantees[j-35] <- Floor
+  Guarantees[j-35] <- W
 }
-  return(Guarantees)
+  return(matrix(c(Guarantees,I_Guarantees),ncol = 2))
 }
-var(CPPI(14,125/100,130/100, MKT_EU_EU))
+
+
+EEandIG <- CPPI(1,125/100,130/100, MKT_EU_EU)
+P1returns <- readRDS("returns_choice.rds")
+P1 <- CPPI(1,125/100,130/100, P1returns)
+CPPI_plot_df <- data.frame(cbind(P1returns$date[1:89],cbind(EEandIG,P1[,1]))) %>% pivot_longer(cols = -"X1", values_to = "value", names_to = "type")
+
+
+ggplot(data = CPPI_plot_df, mapping = aes(x = ym(X1), y = value, colour = type)) + geom_point()
 ```
+# CPPI plot
+
 
 # Efficient frontier plot
 ```{r}
