@@ -110,7 +110,7 @@ for (j in 36:124){
   E_returns <- (return_series %>% filter(ym(date) >= All_years$TIME_PERIOD[j]))$return/100
   
   W <- 100
-  Floor <- 80
+  Floor <- W/L_target
   C <- W-Floor
   E <- max(min(m*C,W),0)
   A <- E
@@ -146,6 +146,7 @@ CPPI <- function(m,L_target,L_trigger,return_series){
   C_month <- array(NA, c(120+1, length(36:124)))
   E_month <- array(NA, c(120+1, length(36:124)))
   W_month <- array(NA, c(120+1, length(36:124)))
+  Trigger_hit <- array(NA, c(120, length(36:124)))
 for (j in 36:124){
   # ZCB_prices <-  All_years[j:(j+120),] %>% 
   #   mutate(
@@ -170,7 +171,7 @@ for (j in 36:124){
   
   W <- 100
   W_month[1, j-35] <- W
-  Floor <- 80
+  Floor <- W/L_target
   Floor_month[1,j-35] <- Floor
   C <- W-Floor
   C_month[1,j-35] <- C
@@ -195,11 +196,14 @@ for (j in 36:124){
     
     if (W/Floor > L_trigger){
       N <- W/(L_target*P_T[i+1])
+      Trigger_hit[i, j-35] <- 1
+    }else{
+      Trigger_hit[i, j-35] <- 0
     }
   }
-  Guarantees[j-35] <- Floor
+  Guarantees[j-35] <- W
 }
-  return(list("Guarantees" = Guarantees, "Floor" = Floor_month, "C" = C_month, "W" = W_month, "E" = E_month))
+  return(list("Guarantees" = Guarantees, "Floor" = Floor_month, "C" = C_month, "W" = W_month, "E" = E_month, "Trigger_hit" = Trigger_hit))
 }
 ```
 
@@ -216,8 +220,11 @@ guarantees_choice <- CPPI(m, L_target, L_trigger, returns_choice)
 guarantees_EU_equity <- CPPI(m, L_target, L_trigger, mkt_EU_period)
 
 guarantee_df <- data.frame(date = All_years$TIME_PERIOD[36:124],
-                           "Portfolio 1" = guarantees_choice,
-                           "European Equity" = guarantees_EU_equity)
+                           "Portfolio 1" = guarantees_choice$Guarantees,
+                           "European Equity" = guarantees_EU_equity$Guarantees)
+
+guarantees_choice$Guarantees[1]
+guarantees_choice$W[ncol(guarantees_choice$W),1]
 
 guarantee_df %>% 
   pivot_longer(cols = -date, names_to = "Portfolio", values_to = "Guarantee") %>% 
@@ -334,7 +341,7 @@ guarantee_df %>%
 returns_choice <- readRDS("returns_choice.rds")
 
 # m <- seq(1, 20, 0.5)
-m <- 7.5
+m <- seq(3, 8, 0.5)
 L_target <- seq(105, 200, 5)/100
 L_trigger <- seq(110, 205, 5)/100
 search_grid = expand.grid(m = m, "L_target" = L_target, "L_trigger" = L_trigger) %>%
@@ -406,8 +413,8 @@ for(i in 1:length(B)){
   short_fall[,i] <- (colSums(B[[i]] <= 0) > 0)
   guarantees_m[i] <- mean(K[[i]])
 }
-
-indices_m <- array(NA, c(210, length(m)))
+# original er 210
+indices_m <- array(NA, c(94, length(m)))
 check_m <- paste(m, "x", sep = "")
 for(i in 1:length(m)){
   indices_m[,i] <- which(startsWith(new_names, check_m[i]))
@@ -449,11 +456,11 @@ short_fall_df %>%
 returns_choice <- readRDS("returns_choice.rds")
 
 # m <- seq(1, 20, 0.5)
-m <- 7.5
-L_target <- 105/100
-L_trigger <- seq(110, 230, 1)/100
+m <- 7
+L_target <- seq(105, 200, 2)/100
+L_trigger <- seq(110, 205, 2)/100
 search_grid = expand.grid(m = m, "L_target" = L_target, "L_trigger" = L_trigger) %>%
-  filter(L_target < L_trigger)
+  filter(L_target < L_trigger & L_trigger - L_target <= 0.3)
 search_grid <- sort_by(search_grid, ~list(m, L_target, L_trigger))
 new_names <- apply(search_grid, 1, paste, collapse = "x")
 
@@ -490,13 +497,15 @@ df_with_diff <- df %>%
 colnames(wealth_df) <- c("date", round(df_with_diff$Difference, 3))
 
 plot(colMeans(wealth_df[,-1]))
+```
 
-# wealth_df %>% 
-#   pivot_longer(cols = -date, names_to = "parameters", values_to = "guarantee") %>% 
-#   ggplot(aes(date, guarantee, color = parameters)) +
-#     geom_line() +
-#     scale_color_viridis_d(option = "cividis") +
-#     theme(legend.position = "none")
+```{r Trigger hit}
+Trigger_hit <- map(guarantees_trigger_target, "Trigger_hit")
+
+Trigger_hit_df <- as.tibble(lapply(Trigger_hit, colSums))
+
+colMeans(Trigger_hit_df)
+
 ```
 
 
@@ -505,7 +514,7 @@ guarantees <- readRDS("E:/OneDrive - University of Copenhagen/Aktuar/5. år/Asse
 
 wealth <- map(guarantees, "W")
 new_names <- names(wealth)
-wealth <- wealth[which(startsWith(new_names, paste(7.5, "x", sep = "")))]
+wealth <- wealth[which(startsWith(new_names, paste(7, "x", sep = "")))]
 last_row_list <- lapply(wealth, function(x) x[nrow(x), ])
 wealth_df <- tibble(date = All_years$TIME_PERIOD[36:124]) %>% 
   cbind(last_row_list)
