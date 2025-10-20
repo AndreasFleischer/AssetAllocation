@@ -4,7 +4,7 @@ author: "Andreas Fleischer"
 date: "2025-10-10"
 output: html_document
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 
 ```{r setup, include=FALSE}
@@ -185,8 +185,6 @@ summary(lm(MOM_EU_EU$MOM[1:244]~1))$coefficients*c(1,sqrt(244),1,1)
 ```
 # Time-series regression (US-US)
 ```{r}
-All_years <- readRDS("All_years_ready.rds")
-
 # Make new FF factor df
 RF <- ff_3_factors$subsets$data[[1]] %>% filter(date >= 200409) %>% select(c("RF"))
 
@@ -261,6 +259,7 @@ ff25_table <- ff25_results %>%
 # View results
 ff25_table
 round(ff25_table$r.squared,2)
+sum(abs(ff25_table$Alpha_t_stat)>1.96)
 ```
 
 # Time-series regression on 5x5 (EU-US)
@@ -345,6 +344,7 @@ ff25_table_us <- ff25_results_us %>%
 # View results
 ff25_table_us
 round(ff25_table_us$r.squared,2)
+sum(abs(ff25_table_us$Alpha_t_stat)>1.96)
 ```
 
 
@@ -431,6 +431,7 @@ ff25_table_eu <- ff25_results_eu %>%
 # View results
 ff25_table_eu
 round(ff25_table_eu$r.squared,2)
+sum(abs(ff25_table_eu$Alpha_t_stat)>1.96)
 ```
 # GRS intercept test
 ```{r}
