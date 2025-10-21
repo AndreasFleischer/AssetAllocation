@@ -681,6 +681,8 @@ all_factors_long <- data.frame(MKT_US = MKT_EU_US$Mkt[1:244]-All_years$return,
                                MOM_EU = MOM_EU_EU_long$MOM[1:244])
 round(cor(all_factors_long),2)
 round(cov(all_factors_long),2)
+
+
 ```
 
 
@@ -691,6 +693,8 @@ factor.df <- data.frame(SMB_us = SMB_EU_US$SMB,
                         MOM_us = MOM_EU_US$MOM,
                         SMB_eu = SMB_EU_EU$SMB,
                         MOM_eu = MOM_EU_EU$MOM)
+
+
 cov.mat <- cov(factor.df)
 mean.vec <- colMeans(factor.df-All_years$return)
 
