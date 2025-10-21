@@ -4,7 +4,7 @@ author: "Andreas Fleischer"
 date: "2025-10-10"
 output: html_document
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 
 ```{r setup, include=FALSE}
@@ -44,13 +44,14 @@ size_mom_6_euro <- download_french_data("6 European Portfolios Formed on Size an
 size_mom_25_euro <- download_french_data("25 European Portfolios Formed on Size and Momentum (5 x 5)")
 
 # Other
-setwd("/Users/andreas/Documents/Uni/5. År/Asset Allocation (PUK)")
-exchange_rate <- read_csv("GitHub/AssetAllocation/Data AA/eurofxref-hist.csv") # Tror det er valutakurser
-# exchange_rate <- read_csv("Data AA/eurofxref-hist.csv") #
+# setwd("/Users/andreas/Documents/Uni/5. År/Asset Allocation (PUK)")
+# exchange_rate <- read_csv("GitHub/AssetAllocation/Data AA/eurofxref-hist.csv") # Tror det er valutakurser
+exchange_rate <- read_csv("Data AA/eurofxref-hist.csv") #
 # Yield_curve_1_year <- read_csv("Data AA/Yield curve 1 year.csv")
 # Yield_curve <- read_csv("Data AA/Yield curve full.csv")
 
-All_years <- readRDS("GitHub/AssetAllocation/All_years_ready.rds")
+# All_years <- readRDS("GitHub/AssetAllocation/All_years_ready.rds")
+All_years <- readRDS("All_years_ready.rds")
 ```
 
 # US-US (MKT)
@@ -831,97 +832,16 @@ for (j in 36:124){
   return(matrix(c(Guarantees,I_Guarantees),ncol = 2))
 }
 
+
+EEandIG <- CPPI(1,125/100,130/100, MKT_EU_EU)
+P1returns <- readRDS("returns_choice.rds")
+P1 <- CPPI(1,125/100,130/100, P1returns)
+CPPI_plot_df <- data.frame(cbind(P1returns$date[1:89],cbind(EEandIG,P1[,1]))) %>% pivot_longer(cols = -"X1", values_to = "value", names_to = "type")
+
+
+ggplot(data = CPPI_plot_df, mapping = aes(x = ym(X1), y = value, colour = type)) + geom_point()
 ```
 # CPPI plot
-```{r}
-EEandIG <- CPPI(1,125/100,130/100, MKT_EU_EU)
-P1returns <- readRDS("GitHub/AssetAllocation/returns_choice.rds")
-P1 <- CPPI(1,125/100,130/100, P1returns)
-CPPI_plot_df <- data.frame(cbind(P1returns$date[1:89],cbind(EEandIG,P1[,1])))
-
-CPPI_plot_df <- CPPI_plot_df %>%
-  rename(
-    Date = X1,
-    `European Equity` = X2,
-    `Portfolio 1` = X4,
-    `Initial Guarantee` = X3
-  ) %>%
-  pivot_longer(
-    cols = c(`European Equity`, `Portfolio 1`, `Initial Guarantee`),
-    names_to = "Type",
-    values_to = "Value"
-  )
-
-# Convert to date if needed
-CPPI_plot_df$Date <- ym(CPPI_plot_df$Date)
-
-# Plot
-ggplot(CPPI_plot_df, aes(x = Date, y = Value, color = Type)) +
-  geom_line(size = 1.1) +
-  geom_point(size = 1.8, alpha = 0.8) +
-  scale_x_date(date_labels = "%Y", date_breaks = "2 years") +
-  scale_y_continuous(labels = number_format(accuracy = 0.01)) +
-  labs(
-    title = "Development of CPPI Portfolio Guarantees",
-    subtitle = "Comparison between Portfolio 1, European Equity",
-    x = "Date",
-    y = "Guarantee",
-    color = "Strategy"
-  ) +
-  theme_minimal(base_size = 11) +
-  theme(
-    plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
-    plot.subtitle = element_text(size = 11, hjust = 0.5, color = "gray40"),
-    axis.title = element_text(face = "bold"),
-    legend.position = "bottom",
-    legend.title = element_text(face = "bold"),
-    panel.grid.minor = element_blank(),
-    panel.grid.major.x = element_blank()
-  ) +
-  scale_color_manual(values = c(
-    "European Equity" = "#0072B2",     # blue
-    "Portfolio 1" = "#E41A1C",         # red
-    "Initial Guarantee" = "#009E73"    # green
-  ))
-```
-# CPPI Histogram
-```{r}
-
-round(sd(P1returns$return),2)
-mu <- mean(EEandIG[,1], na.rm = TRUE)
-sigma <- sd(EEandIG[,1], na.rm = TRUE)
-
-# Create data frame
-df <- data.frame(Value = EEandIG[,1])
-
-# Plot histogram
-ggplot(df, aes(x = Value)) +
-  geom_histogram(
-    bins = 30, fill = "#0072B2", color = "white", alpha = 0.7
-  ) +
-  geom_vline(xintercept = mu, color = "#E41A1C", size = 0.9, linetype = "dashed") +
-  geom_vline(xintercept = mu + sigma, color = "gray40", linetype = "dotted") +
-  geom_vline(xintercept = mu - sigma, color = "gray40", linetype = "dotted") +
-  annotate(
-    "text",
-    x = -Inf, y = Inf,
-    hjust = -0.1, vjust = 1.5,
-    label = paste0("\u03bc = ", round(mu, 2), "\n\u03c3 = ", round(sigma, 2)),
-    size = 3.8, color = "black", fontface = "bold", alpha = 0.6
-  ) +
-  labs(
-    title = "Distribution of European Equity Guarantees",
-    x = "Return",
-    y = "Frequency"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
-    axis.title = element_text(face = "bold"),
-    panel.grid.minor = element_blank()
-  )
-```
-
 
 
 # Efficient frontier plot

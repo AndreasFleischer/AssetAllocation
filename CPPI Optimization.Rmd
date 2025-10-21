@@ -677,3 +677,50 @@ wealth_df %>%
     theme(legend.position = "none")
 ```
 
+
+# CPPI using the recommended strategy
+```{r m = 7, target = 134%, trigger = 146%}
+m <- 1
+L_target <- 125/100
+L_trigger <- 130/100
+returns_choice <- readRDS("returns_choice.rds")
+mkt_EU_period <- MKT_EU_EU %>% filter(date >= 200709 & date <= 202412)
+colnames(mkt_EU_period) <- c("date", "return")
+
+guarantees_choice <- CPPI(m, L_target, L_trigger, returns_choice)
+guarantees_EU_equity <- CPPI(m, L_target, L_trigger, mkt_EU_period)
+guarantees_recommended <- CPPI(7, 1.34, 1.46, returns_choice)
+
+guarantee_df <- data.frame(date = All_years$TIME_PERIOD[36:124],
+                           "Portfolio 1" = guarantees_choice$Guarantees,
+                           "European Equity" = guarantees_EU_equity$Guarantees,
+                           "Portfolio 1 Recommended" = guarantees_recommended$Guarantees)
+
+guarantee_df %>% 
+  pivot_longer(cols = -date, names_to = "Portfolio", values_to = "Guarantee") %>% 
+  ggplot(aes(x = as.Date(date), y = Guarantee, color = Portfolio)) +
+    geom_line(size = 1.1) +
+    geom_point(size = 2, alpha = 0.7) +
+    # geom_line(color = "#0072B2", size = 1.1) +
+    # geom_point(color = "#0072B2", size = 2, alpha = 0.7) +
+    scale_color_manual(values = c("Portfolio.1" = "#0072B2", "European.Equity" = "#D55E00"),
+                       breaks=c("Portfolio.1", "European.Equity"),
+                       labels=c("Portfolio 1", "European Equity")) +
+    scale_x_date(date_labels = "%Y", date_breaks = "2 years") +
+    scale_y_continuous(labels = scales::number_format(accuracy = 0.01)) +
+    labs(
+      title = "Development of the Portfolio Guarantee Over Time",
+      subtitle = "Guarantee level implied by CPPI floor mechanism",
+      x = "Date",
+      y = "Guarantee Value"
+    ) +
+    theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
+      plot.subtitle = element_text(size = 11, hjust = 0.5, color = "gray40"),
+      axis.title = element_text(face = "bold"),
+      panel.grid.minor = element_blank(),
+      panel.grid.major.x = element_blank()
+    )
+```
+
