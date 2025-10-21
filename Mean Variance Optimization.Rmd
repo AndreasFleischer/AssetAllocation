@@ -413,26 +413,26 @@ for(i in 1:n_internal){
 
 
 <!-- ```{r Til opgave 1b} -->
-<!-- returns_b <- factors %>% filter(date >= 200409 & date <= 202412) -->
-<!-- returns_b <- cbind(returns_b, RF.EU %>% filter(TIME_PERIOD >= ym(200409) & TIME_PERIOD <= ym(202501)) %>% select(return)) -->
-<!-- target_returns_b <- readRDS("target_returns_portfolio_1.rds")+0.5 -->
+<!-- returns_all <- factors %>% filter(date >= 200409 & date <= 202412) -->
+<!-- returns_all <- cbind(returns_all, RF.EU %>% filter(TIME_PERIOD >= ym(200409) & TIME_PERIOD <= ym(202501)) %>% select(return)) -->
+<!-- target_returns_all <- readRDS("target_returns_portfolio_1.rds")+0.5 -->
 
-<!-- n_assets <- ncol(returns_b[,-1]) -->
-<!-- n <- nrow(returns_b) - 35 - 1 -->
+<!-- n_assets <- ncol(returns_all[,-1]) -->
+<!-- n <- nrow(returns_all) - 35 - 1 -->
 <!-- w <- matrix(NA, nrow = n, ncol = n_assets) -->
 <!-- Sigma <- array(NA, c(n, n_assets, n_assets)) -->
 <!-- mu <- array(NA, c(n, n_assets)) -->
 
 <!-- for(i in 1:n){ -->
-<!--   excess_returns_period <- returns_b[i:(i+35),-1] -->
+<!--   excess_returns_period <- returns_all[i:(i+35),-1] -->
 <!--   mu[i,] <- colMeans(excess_returns_period) -->
 <!--   Sigma[i,,] <- cov(excess_returns_period) -->
-<!--   w[i,] <- optimize_internal2(mu[i,], Sigma[i,,], target_returns_b[i]) -->
+<!--   w[i,] <- optimize_internal2(mu[i,], Sigma[i,,], target_returns_all[i]) -->
 <!-- } -->
 
 
-<!-- colnames(w) <- colnames(returns_b[,-1]) -->
-<!-- factors_period <- returns_b[37:nrow(returns_b),] -->
+<!-- colnames(w) <- colnames(returns_all[,-1]) -->
+<!-- factors_period <- returns_all[37:nrow(returns_all),] -->
 <!-- returns_shorting <- rowSums(w*factors_period[,-1]) -->
 
 <!-- (cumprod(1+returns_shorting/100)-1)*100 -->
@@ -451,10 +451,10 @@ all_factors <- data.frame(date = factors$date,
                           SMB_EU = SMB_EU_EU$SMB[1:244],
                           MOM_EU = MOM_EU_EU$MOM[1:244],
                           RF = RF.EU$return)
-returns_b <- all_factors %>% filter(date >= 200409 & date <= 202412)
+returns_all <- all_factors %>% filter(date >= 200409 & date <= 202412)
 
-cov_period <- cov(returns_b[,-1])
-n_assets <- length(colMeans(returns_b[,-1]))
+cov_period <- cov(returns_all[,-1])
+n_assets <- length(colMeans(returns_all[,-1]))
 target_variance <- 7 
 
 optimize_b <- function(mean_returns, cov_period, target_variance){
@@ -466,39 +466,53 @@ optimize_b <- function(mean_returns, cov_period, target_variance){
   }
   
   equality_constraints <- function(w) {
-    portfolio_var <- t(w) %*% cov_period %*% w
+    #portfolio_var <- t(w) %*% cov_period %*% w
     sum_of_weights <- sum(w[c(1, 4, 7)])
-    return(c(portfolio_var, sum_of_weights))
+    #return(c(portfolio_var, sum_of_weights))
+    return(sum_of_weights)
   }
   
   equality_targets <- c(
-    target_variance, 
+    #target_variance, 
     1                
   )
   
+  inequality_constraints <- function(w){
+    portfolio_var <- t(w) %*% cov_period %*% w
+    return(portfolio_var)
+  }
+  
+  inequality_upper <- target_variance
+  inequality_lower <- 0
+  
   initial_weights <- rep(1 / n_assets, n_assets)
   
-  lower_bounds <- c(rep(-1000, n_assets-1), 0)
-  upper_bounds <- rep(1000, n_assets)
+  lower_bounds <- c(rep(-5, n_assets-1), 0)
+  upper_bounds <- rep(5, n_assets)
   
   sol <- solnp(
     pars = initial_weights,
     fun = objective_func,
     eqfun = equality_constraints,
     eqB = equality_targets,
+    ineqfun = inequality_constraints,
+    ineqUB = inequality_upper,
+    ineqLB = inequality_lower,
     LB = lower_bounds,
     UB = upper_bounds,
-    control = list(trace = 0)
+    control = list(trace = 0, rho = 1000)
   )
   
   return(sol$pars)
 }
 
 
-optimal_weights <- optimize_b(colMeans(returns_b[,-1]), cov(returns_b[,-1]), 10)
+optimal_weights <- optimize_b(colMeans(returns_all[,-1]), cov(returns_all[,-1]), 10)
 print(round(optimal_weights, 3))
 t(optimal_weights)%*%cov_period%*%optimal_weights
 ```
+
+
 ```{r}
 n <- 208
 target_variance <- rep(0, n)
@@ -506,28 +520,99 @@ for(i in 1:n){
   target_variance[i] <- t(w_internal[1,i,])%*%Sigma[i,,]%*%w_internal[1,i,]
 }
 
-n_assets <- ncol(returns_b[,-1])
-n <- nrow(returns_b) - 35 - 1
+
+
+n_assets <- ncol(returns_all[,-1])
+n <- nrow(returns_all) - 35 - 1
 w_b <- matrix(NA, nrow = n, ncol = n_assets)
 mu_b <- array(NA, c(n, n_assets))
 Sigma_b <- array(NA, c(n, n_assets, n_assets))
 
 for(i in 1:n){
-  returns_b_period <- returns_b[i:(i+35),-1]
-  mu_b[i,] <- colMeans(returns_b_period)
-  Sigma_b[i,,] <- cov(returns_b_period)
+  returns_all_period <- returns_all[i:(i+35),-1]
+  mu_b[i,] <- colMeans(returns_all_period)
+  Sigma_b[i,,] <- cov(returns_all_period)
   w_b[i,] <- optimize_b(mu_b[i,], Sigma_b[i,,], target_variance[i])
 }
 
 
-colnames(w) <- colnames(returns_b[,-1])
-factors_period <- returns_b[37:nrow(returns_b),]
-returns_shorting <- rowSums(w*factors_period[,-1])
+colnames(w_b) <- colnames(returns_all[,-1])
+factors_period <- returns_all[37:nrow(returns_all),]
+returns_shorting <- rowSums(w_b*factors_period[,-1])
 
 (cumprod(1+returns_shorting/100)-1)*100
 
 sd(returns_shorting)
 
+var_short <- rep(NA, 208)
+for(i in 1:n){
+  var_short[i] <- t(w_b[i,])%*%Sigma_b[i,,]%*%w_b[i,]
+}
+
+w_b[190:208,]
+
+sum(round(var_short, 0) != round(target_variance, 0))
+
+var_short >= target_variance
+
+ggplot() +
+  geom_point(aes(1:208, var_short), color = "red") +
+  geom_point(aes(1:208, target_variance), color = "green")
+
+Sigma_b[1,,]
+```
+
+## Target return min variance
+```{r}
+optimize_target_return_b <- function(returns, cov_period, target_return){
+  n_assets <- length(returns)
+  
+  Dmat <- cov_period
+  dvec <- rep(0, n_assets)
+  Amat <- cbind(returns, c(1, 0, 0, 1, 0, 0, 1), c(rep(0, 6), 1))
+  bvec <- c(                   
+    target_return,
+    1,      # The value for the first constraint (sum(...) = 1)
+    0     # The values for the w_7 >= 0 constraints
+  )
+  meq <- 2
+  
+  sol<- solve.QP(Dmat = Dmat,
+                              dvec = dvec,
+                              Amat = Amat,
+                              bvec = bvec,
+                              meq = meq)
+  w <- sol$solution
+  return(w)
+}
+
+
+target_return_b <- target_returns[,1]
+n_assets <- ncol(returns_all[,-1])
+n <- nrow(returns_all) - 35 - 1
+w_b_target_return <- matrix(NA, nrow = n, ncol = n_assets)
+mu_b_target_return <- array(NA, c(n, n_assets))
+Sigma_b_target_return <- array(NA, c(n, n_assets, n_assets))
+
+for(i in 1:n){
+  returns_all_period <- returns_all[i:(i+35),-1]
+  mu_b_target_return[i,] <- colMeans(returns_all_period)
+  Sigma_b_target_return[i,,] <- cov(returns_all_period)
+
+  w_b_target_return[i,] <- optimize_target_return_b(
+    mu_b_target_return[i,],
+    Sigma_b_target_return[i,,],
+    target_return_b[i]
+  )
+}
+
+returns_short <- rowSums(w_b_target_return*mu_b_target_return)
+
+ggplot() +
+  geom_point(aes(1:n, returns_short), col = "red") +
+  geom_point(aes(1:n, rowSums(mu_b_target_return)), col = "green")
+
+w_b_target_return[1:10,]
 ```
 
 
