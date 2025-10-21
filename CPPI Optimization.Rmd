@@ -147,6 +147,7 @@ CPPI <- function(m,L_target,L_trigger,return_series){
   E_month <- array(NA, c(120+1, length(36:124)))
   W_month <- array(NA, c(120+1, length(36:124)))
   Trigger_hit <- array(NA, c(120, length(36:124)))
+  N_month <- array(NA, c(120+1, length(36:124)))
 for (j in 36:124){
   # ZCB_prices <-  All_years[j:(j+120),] %>% 
   #   mutate(
@@ -180,6 +181,7 @@ for (j in 36:124){
   A <- E
   etaR <- (W-E)/P_T[1]
   N <- Floor/P_T[1]
+  N_month[,j-35] <- N
   for (i in 1:120){
     A <- (1+E_returns[i])*A
     R <- etaR*P_T[i+1]
@@ -200,10 +202,11 @@ for (j in 36:124){
     }else{
       Trigger_hit[i, j-35] <- 0
     }
+    N_month[i,j-35] <- N
   }
   Guarantees[j-35] <- W
 }
-  return(list("Guarantees" = Guarantees, "Floor" = Floor_month, "C" = C_month, "W" = W_month, "E" = E_month, "Trigger_hit" = Trigger_hit))
+  return(list("Guarantee_end" = Guarantees, "Floor" = Floor_month, "C" = C_month, "Wealth_month" = W_month, "E" = E_month, "Trigger_hit" = Trigger_hit, "Guarantee_month" = N_month))
 }
 ```
 
@@ -341,9 +344,9 @@ guarantee_df %>%
 returns_choice <- readRDS("returns_choice.rds")
 
 # m <- seq(1, 20, 0.5)
-m <- seq(3, 8, 0.5)
+m <- seq(1, 20, 0.5)
 L_target <- seq(105, 200, 5)/100
-L_trigger <- seq(110, 205, 5)/100
+L_trigger <- seq(110, 230, 5)/100
 search_grid = expand.grid(m = m, "L_target" = L_target, "L_trigger" = L_trigger) %>%
   filter(L_target < L_trigger & L_trigger - L_target <= 0.3)
 search_grid <- sort_by(search_grid, ~list(m, L_target, L_trigger))
@@ -363,7 +366,7 @@ names(guarantees) <- new_names
 
 # guarantees <- readRDS("E:/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI strats.rds")
 
-plot_df <- as.tibble(map(guarantees, 1))
+plot_df <- as_tibble(map(guarantees, 1))
 plot_df <- cbind(tibble(date = All_years$TIME_PERIOD[36:124]), plot_df)
 colnames(plot_df) <- c("date", new_names)
 
@@ -398,7 +401,7 @@ colnames(plot_df) <- c("date", new_names)
 
 ```
 
-### Shortfall plot to determine m
+      ### m
 ```{r}
 B <- map(guarantees, 3)
 K <- map(guarantees, 1)
@@ -413,8 +416,10 @@ for(i in 1:length(B)){
   short_fall[,i] <- (colSums(B[[i]] <= 0) > 0)
   guarantees_m[i] <- mean(K[[i]])
 }
-# original er 210
-indices_m <- array(NA, c(94, length(m)))
+
+k <- length(which(startsWith(new_names, check_m[1])))
+
+indices_m <- array(NA, c(k, length(m)))
 check_m <- paste(m, "x", sep = "")
 for(i in 1:length(m)){
   indices_m[,i] <- which(startsWith(new_names, check_m[i]))
@@ -444,10 +449,35 @@ short_fall_df %>%
   arrange(as.numeric(m)) %>% 
   left_join(guarantees_m_plot_df, by = "m") %>% 
   ggplot(aes(as.numeric(m), short_fall_prop_m)) +
-    geom_point()  
+    geom_point()
 
-# Tommelfinger regel til at bestemme m
-1/(-min(rowSums(factors_period[,-1]))/100)
+
+
+
+library(purrr)
+library(stringr)
+library(dplyr)
+
+vol_df <- K %>%
+  imap_dfr(~ {
+    m_group <- str_split(.y, "x", simplify = TRUE)[1]
+    tibble(
+      m_group = m_group,
+      volatility = sd(.x)
+    )
+  })
+
+grouped_vol_df <- vol_df %>%
+  group_by(m_group) %>%
+  summarize(
+    mean_volatility = mean(volatility),
+    count = n()
+  ) %>%
+  mutate(m_group = as.numeric(m_group)) %>%
+  arrange(m_group)
+
+print(grouped_vol_df)
+
 
 ```
 
@@ -692,20 +722,22 @@ guarantees_EU_equity <- CPPI(m, L_target, L_trigger, mkt_EU_period)
 guarantees_recommended <- CPPI(7, 1.34, 1.46, returns_choice)
 
 guarantee_df <- data.frame(date = All_years$TIME_PERIOD[36:124],
-                           "Portfolio 1" = guarantees_choice$Guarantees,
-                           "European Equity" = guarantees_EU_equity$Guarantees,
-                           "Portfolio 1 Recommended" = guarantees_recommended$Guarantees)
+                           "Portfolio 1" = guarantees_choice$Guarantee_end,
+                           "European Equity" = guarantees_EU_equity$Guarantee_end,
+                           "Portfolio 1 Recommended" = guarantees_recommended$Guarantee_end)
 
-guarantee_df %>% 
-  pivot_longer(cols = -date, names_to = "Portfolio", values_to = "Guarantee") %>% 
+guarantee_df %>%
+  pivot_longer(cols = -date, names_to = "Portfolio", values_to = "Guarantee") %>%
   ggplot(aes(x = as.Date(date), y = Guarantee, color = Portfolio)) +
     geom_line(size = 1.1) +
     geom_point(size = 2, alpha = 0.7) +
     # geom_line(color = "#0072B2", size = 1.1) +
     # geom_point(color = "#0072B2", size = 2, alpha = 0.7) +
-    scale_color_manual(values = c("Portfolio.1" = "#0072B2", "European.Equity" = "#D55E00"),
-                       breaks=c("Portfolio.1", "European.Equity"),
-                       labels=c("Portfolio 1", "European Equity")) +
+    scale_color_manual(values = c("Portfolio.1"           = "#0072B2", 
+           "European.Equity"       = "#D55E00", 
+           "Portfolio.1.Recommended" = "#009E73"),
+                       breaks=c("Portfolio.1", "European.Equity", "Portfolio.1.Recommended"),
+                       labels=c("Portfolio 1", "European Equity", "Portfolio 1 recommended strat")) +
     scale_x_date(date_labels = "%Y", date_breaks = "2 years") +
     scale_y_continuous(labels = scales::number_format(accuracy = 0.01)) +
     labs(
@@ -722,5 +754,7 @@ guarantee_df %>%
       panel.grid.minor = element_blank(),
       panel.grid.major.x = element_blank()
     )
+
+
 ```
 
