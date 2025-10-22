@@ -223,8 +223,8 @@ guarantees_choice <- CPPI(m, L_target, L_trigger, returns_choice)
 guarantees_EU_equity <- CPPI(m, L_target, L_trigger, mkt_EU_period)
 
 guarantee_df <- data.frame(date = All_years$TIME_PERIOD[36:124],
-                           "Portfolio 1" = guarantees_choice$Guarantee_end,
-                           "European Equity" = guarantees_EU_equity$Guarantee_end)
+                           "Portfolio 1" = guarantees_choice$Guarantee,
+                           "European Equity" = guarantees_EU_equity$Guarantee)
 
 guarantee_df %>% 
   pivot_longer(cols = -date, names_to = "Portfolio", values_to = "Guarantee") %>% 
@@ -363,6 +363,10 @@ names(guarantees) <- new_names
 
 # guarantees <- readRDS("C:/Users/Nikolaj/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats.rds")
 
+guarantees <- readRDS("C:/Users/nikol/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats.rds")
+
+
+
 plot_df <- as_tibble(map(guarantees, 1))
 plot_df <- cbind(tibble(date = All_years$TIME_PERIOD[36:124]), plot_df)
 colnames(plot_df) <- c("date", new_names)
@@ -427,7 +431,7 @@ dim(indices_m)
 short_fall_df <- matrix(A[indices_m], nrow = nrow(indices_m), ncol = ncol(indices_m), byrow = FALSE)
 short_fall_df <- as.tibble(short_fall_df)
 
-guarantees_m_df <- matrix(guarantees[indices_m], nrow = nrow(indices_m), ncol = ncol(indices_m), byrow = FALSE)
+guarantees_m_df <- matrix(K[indices_m], nrow = nrow(indices_m), ncol = ncol(indices_m), byrow = FALSE)
 guarantees_m_df <- as.tibble(guarantees_m_df)
 
 colnames(short_fall_df) <- m
@@ -470,9 +474,6 @@ min_df <- K %>%
       min_value = min(.x)
     )
   })
-
-# Print the resulting min_df
-print(min_df)
 
 # 2. Group and summarize (this code is the same as before)
 mean_of_mins_df <- min_df %>%
@@ -534,6 +535,124 @@ ggplot(df_cleaned, aes(x = m)) +
   theme_minimal() +
   theme(legend.position = "top")
 ```
+
+
+```{r}
+target_choice <- c(1.25, 1.3, 1.4)
+trigger_choice <- c(1.3, 1.35, 1.45)
+
+helper_df <- min_df %>% 
+  filter(Target == 1.25 & Trigger == 1.3)
+
+min_target_trigger_df <- min_df %>% 
+  filter(Target == target_choice & Trigger == trigger_choice)
+
+df_cleaned <- short_fall_df %>% 
+  pivot_longer(cols = everything(), names_to = "m", values_to = "Short_fall_prop") %>%
+  group_by(m) %>% 
+  summarise(short_fall_prop_m = mean(Short_fall_prop)) %>% 
+  arrange(as.numeric(m)) %>% 
+  cbind(helper_df$min_value) %>%
+  rename(min_guarantee = `helper_df$min_value`) %>%
+  mutate(m = as.numeric(m))
+
+scale_factor <- max(df_cleaned$short_fall_prop_m) / max(df_cleaned$min_guarantee)
+
+ggplot(df_cleaned, aes(x = m)) +
+  
+  geom_line(aes(y = short_fall_prop_m, color = "Shortfall Prop"), size = 1.2) +
+  geom_point(aes(y = short_fall_prop_m), color = "#0072B2", size = 2.5) +
+  
+  geom_line(aes(y = min_guarantee * scale_factor, color = "Minimum guarantee"), size = 1.2) +
+  geom_point(aes(y = min_guarantee * scale_factor), color = "#D55E00", size = 2.5) +
+  geom_line(aes(y = filter(min_df, Target == 2, Trigger == 2.05)$min_value * scale_factor, color = "Minimum guarantee"), size = 1.2) +
+  geom_point(aes(y = filter(min_df, Target == 2, Trigger == 2.05)$min_value * scale_factor), color = "blue", size = 2.5) +
+  scale_y_continuous(
+    name = "Shortfall Probability",
+    labels = scales::percent_format(accuracy = 0.01),
+    sec.axis = sec_axis(
+      trans = ~ . / scale_factor,
+      name = "Minimum guarantee"
+    )
+  ) +
+  scale_x_continuous(breaks = seq(1, 20, by = 2)) +
+  scale_color_manual(
+    name = "Metric",
+    values = c("Shortfall Prop" = "#0072B2", "Minimum guarantee" = "#D55E00")
+  ) +
+  
+  labs(
+    title = "Shortfall Probability vs. minimum guarantee by Multiplier",
+    x = "Multiplier (m)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+
+### Initial guarantee m = 2.5
+```{r}
+initial_guarantee <- map_dfc(guarantees_m_2.5, ~ .[1,])
+
+target_vals <- seq(1.05, 2.05, 0.1)
+trigger_vals <- c("1.15", "1.3", "1.4", "1.95")
+
+initial_guarantee %>%
+  mutate(Period = row_number()) %>%
+  
+  pivot_longer(
+    cols = -Period,
+    names_to = "Name",
+    values_to = "Value"
+  ) %>%
+  
+  mutate(
+    Target = str_split(Name, "x", simplify = TRUE)[, 2],
+    Trigger = str_split(Name, "x", simplify = TRUE)[, 3]
+  ) %>%
+  
+  filter(Target %in% target_vals) %>% 
+  group_by(Target, Period) %>% 
+  summarise("Value" = mean(Value)) %>% 
+  ggplot(aes(x = Period, y = Value, color = Target)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2.5) +
+  labs(
+    title = "Initial Guarantee",
+    x = "Start date of TDF",
+    y = "Initial Guarantee",
+    color = "Target"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+
+initial_guarantee %>%
+  mutate(Period = row_number()) %>%
+  
+  pivot_longer(
+    cols = -Period,
+    names_to = "Name",
+    values_to = "Value"
+  ) %>%
+  
+  mutate(
+    Target = str_split(Name, "x", simplify = TRUE)[, 2],
+    Trigger = str_split(Name, "x", simplify = TRUE)[, 3]
+  ) %>%
+  
+  # filter(Target %in% target_vals) %>% 
+  group_by(Target, Period) %>% 
+  summarise("Value" = mean(Value)) %>% 
+  mutate("initial_guarantee_over_100" = Value >= 100) %>% 
+  group_by(Target) %>% 
+  summarise("n_initial_over_100" = sum(initial_guarantee_over_100),
+            "%_initial_over_100" = n_initial_over_100/89*100,
+            "min_initial_guarantee" = min(Value)) %>% 
+  View()
+  
+```
+
 
 
 ```{r}
@@ -613,8 +732,8 @@ returns_choice <- readRDS("returns_choice.rds")
 
 # m <- seq(1, 20, 0.5)
 m <- 2.5
-L_target <- seq(105, 200, 1)/100
-L_trigger <- seq(110, 230, 1)/100
+L_target <- 1.27
+L_trigger <- seq(128, 157, 1)/100
 search_grid = expand.grid(m = m, "L_target" = L_target, "L_trigger" = L_trigger) %>%
   filter(L_target < L_trigger & L_trigger - L_target <= 0.3)
 search_grid <- sort_by(search_grid, ~list(m, L_target, L_trigger))
@@ -655,67 +774,7 @@ colnames(wealth_df) <- c("date", round(df_with_diff$Difference, 3))
 plot(colMeans(wealth_df[,-1]))
 ```
 
-```{r Trigger hit}
-Trigger_hit <- map(guarantees_trigger_target, "Trigger_hit")
 
-Trigger_hit_df <- as.tibble(lapply(Trigger_hit, colSums))
-
-plot_data <- Trigger_hit_df %>%
-  select(starts_with("7x1.31x")) %>%
-  summarise(across(everything(), ~ mean(., na.rm = TRUE))) %>%
-  pivot_longer(
-    cols = everything(),
-    names_to = "ColumnName",
-    values_to = "MeanValue"
-  )
-
-ggplot(plot_data, aes(x = ColumnName, y = MeanValue)) +
-  geom_col(fill = "steelblue") +
-  labs(
-    title = "Mean Value for Columns Starting with '7x1.25x'",
-    x = "Column Name",
-    y = "Calculated Mean"
-  ) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-
-
-tibble(date = filter(All_years, TIME_PERIOD >= as.Date("2004-09-01") & TIME_PERIOD <= as.Date("2014-09-01"))$TIME_PERIOD, "Trigger_hit" = Trigger_hit$"7x1.25x1.36"[,24]) %>% 
-  ggplot(aes(date, Trigger_hit)) +
-    geom_point()
-
-
-#ddddddd
-pattern_names <- c("7x1.15", "7x1.21", "7x1.25", "7x1.31", "7x1.35")
-
-Trigger_hit_sub <- Trigger_hit_df %>% 
-  select(starts_with(pattern_names))
-
-enframe(colMeans(Trigger_hit_sub), name = "name_str", value = "Trigger_hit_mean") %>%
-  extract(
-    name_str, 
-    into = c("m", "Target", "Trigger"),
-    regex = "([\\d\\.]+)x([\\d\\.]+)x([\\d\\.]+)", 
-    convert = TRUE
-  ) %>%
-  mutate(x_diff = Trigger - Target) %>% 
-  ggplot(aes(x = x_diff, y = Trigger_hit_mean, color = factor(Target))) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 3) +
-  # geom_col(position = "dodge") +
-  labs(
-    title = "Trigger Hit Mean vs. Difference",
-    subtitle = "Grouped by Target Value",
-    x = "X Difference (Trigger - Target)",
-    y = "Trigger Hit Mean",
-    color = "Target"
-  ) +
-  theme_minimal() +
-  theme(
-    plot.title = element_text(hjust = 0.5),
-    plot.subtitle = element_text(hjust = 0.5)
-  )
-    ```
 ### target
 ```{r}
 guarantees_target <- map(guarantees_trigger_target, "Guarantees")
@@ -772,6 +831,41 @@ enframe(guarantees_target_mean, name = "name_str", value = "guarantees") %>%
       color = "blue"
     ) +
   ggtitle("Average guarantee for each trigger level")
+```
+
+#### Hitting trigger
+```{r Trigger hit}
+Trigger_hit <- map(guarantees_trigger_target, "Trigger_hit")
+
+Trigger_hit_df <- as.tibble(lapply(Trigger_hit, colSums))
+
+summary_df <- Trigger_hit_df %>%
+  summarise(across(everything(), median, na.rm = TRUE)) %>%
+  
+  pivot_longer(
+    cols = everything(),
+    names_to = "Name",
+    values_to = "column_mean"
+  ) %>%
+  
+  mutate(
+    Trigger = str_split(Name, "x", simplify = TRUE)[, 3],
+    Trigger = as.numeric(Trigger)
+  )
+
+ggplot(summary_df, aes(x = Trigger, y = column_mean)) +
+  geom_line(size = 1.2, color = "#0072B2") +
+  geom_point(size = 2.5, color = "#0072B2") +
+  scale_x_continuous(breaks = seq(min(summary_df$Trigger), 
+                                 max(summary_df$Trigger), 
+                                 by = 0.05)) +
+  labs(
+    title = "Mean Value of Columns by Trigger Level",
+    subtitle = "For m = 2.5 and Target = 1.27",
+    x = "Trigger Level",
+    y = "Mean Value of Column"
+  ) +
+  theme_minimal()
 ```
 
 
