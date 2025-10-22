@@ -363,7 +363,7 @@ names(guarantees) <- new_names
 
 # guarantees <- readRDS("C:/Users/Nikolaj/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats.rds")
 
-guarantees <- readRDS("C:/Users/nikol/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats.rds")
+# guarantees <- readRDS("C:/Users/nikol/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats.rds")
 
 
 
@@ -592,7 +592,10 @@ ggplot(df_cleaned, aes(x = m)) +
 
 ### Initial guarantee m = 2.5
 ```{r}
-initial_guarantee <- map_dfc(guarantees_m_2.5, ~ .[1,])
+guarantees_m_2.5 <- readRDS("C:/Users/Nikolaj/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats_m_2.5")
+g_initial <- map(guarantees_m_2.5, "Guarantee_month")
+
+initial_guarantee <- map_dfc(g_initial, ~ .[1,])
 
 target_vals <- seq(1.05, 2.05, 0.1)
 trigger_vals <- c("1.15", "1.3", "1.4", "1.95")
@@ -840,7 +843,7 @@ Trigger_hit <- map(guarantees_trigger_target, "Trigger_hit")
 Trigger_hit_df <- as.tibble(lapply(Trigger_hit, colSums))
 
 summary_df <- Trigger_hit_df %>%
-  summarise(across(everything(), median, na.rm = TRUE)) %>%
+  summarise(across(everything(), function(x)quantile(x, p = 0.5))) %>%
   
   pivot_longer(
     cols = everything(),
@@ -859,92 +862,145 @@ ggplot(summary_df, aes(x = Trigger, y = column_mean)) +
   scale_x_continuous(breaks = seq(min(summary_df$Trigger), 
                                  max(summary_df$Trigger), 
                                  by = 0.05)) +
+  scale_y_continuous(breaks = seq(min(0), 
+                                 max(summary_df$column_mean), 
+                                 by = 5)) +
   labs(
-    title = "Mean Value of Columns by Trigger Level",
-    subtitle = "For m = 2.5 and Target = 1.27",
+    title = "Median Value of tie-ins by Trigger level",
+    subtitle = "For m = 2.5 and Target level = 1.27",
     x = "Trigger Level",
-    y = "Mean Value of Column"
+    y = "Median value of tie-ins"
   ) +
   theme_minimal()
 ```
-
-
-```{r m = 7.5}
-guarantees <- readRDS("E:/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI strats.rds")
-
-wealth <- map(guarantees, "W")
-new_names <- names(wealth)
-wealth <- wealth[which(startsWith(new_names, paste(7, "x", sep = "")))]
-last_row_list <- lapply(wealth, function(x) x[nrow(x), ])
-wealth_df <- tibble(date = All_years$TIME_PERIOD[36:124]) %>% 
-  cbind(last_row_list)
-wealth_df <- colMeans(wealth_df[,-1])
-
-plot_data <- enframe(wealth_df, name = "name_str", value = "y_value") %>%
-  extract(
-    name_str, 
-    into = c("m", "Target", "Trigger"),
-    regex = "([\\d\\.]+)x([\\d\\.]+)x([\\d\\.]+)", 
-    convert = TRUE
-  ) %>%
-  mutate(x_diff = Trigger - Target)
-
-ggplot(plot_data, aes(x = x_diff, y = y_value, color = as.factor(Target))) +
-  geom_line() +
-  labs(
-    title = "Value vs. (Trigger - Target) Difference",
-    x = "Difference (Trigger - Target)",
-    y = "Value",
-    color = "Target"
-  ) +
-  theme_minimal() +
-  scale_color_viridis_d(option = "E")
-
-# wealth_df %>% 
-#   pivot_longer(cols = -date, names_to = "parameters", values_to = "guarantee") %>% 
-#   ggplot(aes(date, guarantee, color = parameters)) +
-#     geom_line() +
-#     scale_color_viridis_d(option = "cividis") +
-#     theme(legend.position = "none")
-```
-
-
+##### guarantees for trigger 132-136
 ```{r}
-index <- which(startsWith(new_names, paste(7.5, "x", sep = "")))
+as_tibble(map(guarantees_trigger_target, "Guarantee")[paste("2.5x1.27x", seq(1.32, 1.36, 0.01), sep = "")]) %>% 
+  rename_with(~ str_split_fixed(., "x", 3)[, 3]) %>% 
+  cbind(tibble(date = 1:89)) %>% 
+  pivot_longer(cols = -date, names_to = "Trigger_level", values_to = "Guarantee") %>% 
+  ggplot(aes(date, Guarantee, color = Trigger_level)) +
+    geom_line()
 
-wealth <- map(guarantees, "W")[index]
-K <- map(guarantees, "Guarantees")[index]
+```
+##### Effect for larger values of target
+```{r}
+returns_choice <- readRDS("returns_choice.rds")
 
+# m <- seq(1, 20, 0.5)
+m <- 2.5
+L_target <- 1.27
+L_trigger <- seq(130, 230, 20)/100
+search_grid = expand.grid(m = m, "L_target" = L_target, "L_trigger" = L_trigger) %>%
+  filter(L_target < L_trigger)
+search_grid <- sort_by(search_grid, ~list(m, L_target, L_trigger))
+new_names <- apply(search_grid, 1, paste, collapse = "x")
 
-last_row_list <- lapply(wealth, function(x) x[nrow(x), ])
-wealth_df <- tibble(date = All_years$TIME_PERIOD[36:124]) %>% 
-  cbind(last_row_list)
+# set1 <- m
+# set2 <- L_target*100
+# set3 <- L_trigger*100
+# all_combinations_df <- expand.grid(set1, set2, set3)
+# new_names <- apply(all_combinations_df, 1, paste, collapse = "x")
 
-wealth_df %>% 
-  pivot_longer(cols = -date, names_to = "parameters", values_to = "guarantee") %>% 
-  ggplot(aes(date, guarantee, color = parameters)) +
-    geom_line() +
-    theme(legend.position = "none")
+g <- vector(mode = "list", length = nrow(search_grid))
+for(i in 1:nrow(search_grid)){
+  g[[i]] <- CPPI(search_grid[i,1], search_grid[i,2], search_grid[i,3], returns_choice)
+}
+names(g) <- new_names
+
+as_tibble(map(g, "Guarantee")) %>% 
+  rename_with(~ str_split_fixed(., "x", 3)[, 3]) %>% 
+  mutate(date = 1:89) %>% 
+  pivot_longer(cols = -date, names_to = "Trigger", values_to = "Guarantee") %>% 
+  ggplot(aes(date, Guarantee, color = Trigger)) +
+    geom_line()
 ```
 
 
 # CPPI using the recommended strategy
-```{r m = 7, target = 134%, trigger = 146%}
-m <- 1
-L_target <- 125/100
-L_trigger <- 130/100
+```{r "m = 2.5 target = 127% trigger = 134%"}
+m <- 2.5
+L_target <- 127/100
+L_trigger <- 134/100
 returns_choice <- readRDS("returns_choice.rds")
 mkt_EU_period <- MKT_EU_EU %>% filter(date >= 200709 & date <= 202412)
 colnames(mkt_EU_period) <- c("date", "return")
 
-guarantees_choice <- CPPI(m, L_target, L_trigger, returns_choice)
-guarantees_EU_equity <- CPPI(m, L_target, L_trigger, mkt_EU_period)
-guarantees_recommended <- CPPI(2.5, 1.25, 1.3, returns_choice)
+guarantees_choice <- CPPI(1, 1.25, 1.3, returns_choice)
+guarantees_EU_equity <- CPPI(1, 1.25, 1.3, mkt_EU_period)
+guarantees_recommended <- CPPI(m, L_target, L_trigger, returns_choice)
 
 guarantee_df <- data.frame(date = All_years$TIME_PERIOD[36:124],
-                           "Portfolio 1" = guarantees_choice$Guarantee_end,
-                           "European Equity" = guarantees_EU_equity$Guarantee_end,
-                           "Portfolio 1 Recommended" = guarantees_recommended$Guarantee_end)
+                           "Portfolio 1" = guarantees_choice$Guarantee,
+                           "European Equity" = guarantees_EU_equity$Guarantee,
+                           "Portfolio 1 Recommended" = guarantees_recommended$Guarantee)
+
+values = c(
+  "Portfolio.1" = "#0072B2", 
+  "European.Equity" = "#D55E00", 
+  "Portfolio.1.Recommended" = "#009E73"
+)
+
+breaks = c(
+  "Portfolio.1", 
+  "European.Equity", 
+  "Portfolio.1.Recommended"
+)
+
+labels = c(
+  "Portfolio 1", 
+  "European Equity", 
+  "Recommended strat"
+)
+
+
+
+guarantee_df %>%
+  pivot_longer(cols = -date, names_to = "Portfolio", values_to = "Guarantee") %>%
+  ggplot(aes(x = as.Date(date), y = Guarantee, color = Portfolio)) +
+    geom_line(size = 1.1) +
+    geom_point(size = 2, alpha = 0.7) +
+    scale_color_manual(values = values,
+                       breaks=breaks,
+                       labels=labels) +
+    scale_x_date(date_labels = "%Y", date_breaks = "2 years") +
+    scale_y_continuous(labels = scales::number_format(accuracy = 0.01)) +
+    labs(
+      title = "Development of the Portfolio Guarantee Over Time",
+      subtitle = "Guarantee level implied by CPPI floor mechanism",
+      x = "Date",
+      y = "Guarantee Value"
+    ) +
+    theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
+      plot.subtitle = element_text(size = 11, hjust = 0.5, color = "gray40"),
+      axis.title = element_text(face = "bold"),
+      panel.grid.minor = element_blank(),
+      panel.grid.major.x = element_blank(),
+      legend.position = "bottom"
+    )
+
+
+```
+## recommended CPPI strat with risk parity
+```{r}
+# return_rp lies in Mean Variance Optimization file
+m <- 2.5
+L_target <- 127/100
+L_trigger <- 134/100
+returns_choice <- readRDS("returns_choice.rds")
+mkt_EU_period <- MKT_EU_EU %>% filter(date >= 200709 & date <= 202412)
+colnames(mkt_EU_period) <- c("date", "return")
+
+return_rp_df <- tibble(date = returns_choice$date, "return" = return_rp)
+
+guarantees_rp <- CPPI(m, L_target, L_trigger, return_rp_df)
+guarantees_MV <- CPPI(m, L_target, L_trigger, returns_choice)
+
+guarantee_df <- data.frame(date = All_years$TIME_PERIOD[36:124],
+                           "Portfolio 1" = guarantees_MV$Guarantee,
+                           "Risk_parity" = guarantees_rp$Guarantee)
 
 guarantee_df %>%
   pivot_longer(cols = -date, names_to = "Portfolio", values_to = "Guarantee") %>%
@@ -954,10 +1010,9 @@ guarantee_df %>%
     # geom_line(color = "#0072B2", size = 1.1) +
     # geom_point(color = "#0072B2", size = 2, alpha = 0.7) +
     scale_color_manual(values = c("Portfolio.1"           = "#0072B2", 
-           "European.Equity"       = "#D55E00", 
-           "Portfolio.1.Recommended" = "#009E73"),
-                       breaks=c("Portfolio.1", "European.Equity", "Portfolio.1.Recommended"),
-                       labels=c("Portfolio 1", "European Equity", "Portfolio 1 recommended strat")) +
+           "Risk_parity"       = "#D55E00"),
+                       breaks=c("Portfolio.1", "Risk_parity"),
+                       labels=c("Portfolio 1", "Risk parity")) +
     scale_x_date(date_labels = "%Y", date_breaks = "2 years") +
     scale_y_continuous(labels = scales::number_format(accuracy = 0.01)) +
     labs(
@@ -974,7 +1029,5 @@ guarantee_df %>%
       panel.grid.minor = element_blank(),
       panel.grid.major.x = element_blank()
     )
-
-
 ```
 
