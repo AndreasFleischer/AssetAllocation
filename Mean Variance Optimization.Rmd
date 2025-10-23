@@ -1054,9 +1054,9 @@ all_factors <- data.frame(date = factors$date,
                           RF = RF.EU$return)
 returns_all <- all_factors %>% filter(date >= 200409 & date <= 202412)
 ```
-## Optimization
+## Optimization functions
 ```{r}
-optimize_portfolio <- function(excess_returns, cov_period, alpha){
+optimize_portfolio_shorting <- function(excess_returns, cov_period, alpha){
   n_assets <- length(excess_returns)
 
   Dmat <- cov_period
@@ -1077,7 +1077,7 @@ optimize_portfolio <- function(excess_returns, cov_period, alpha){
   return(w)
 }
 
-optimize_internal <- function(excess_returns, cov_period, target_return, alpha){
+optimize_internal_shorting <- function(excess_returns, cov_period, target_return, alpha){
   n_assets <- length(excess_returns)
 
   Dmat <- cov_period
@@ -1100,7 +1100,7 @@ optimize_internal <- function(excess_returns, cov_period, target_return, alpha){
 }
 
 
-optimize_return <- function(excess_returns, alpha){
+optimize_return_shorting <- function(excess_returns, alpha){
   n_assets <- length(excess_returns)
   objective.in <- excess_returns
   const.mat <- matrix(c(1, alpha, alpha, 1, alpha, alpha), nrow = 1)
@@ -1125,6 +1125,7 @@ cum_return <- function(x){
 
 ```
 
+## Optimization
 ```{r}
 optimize_with_shorting <- function(alpha, returns){
 
@@ -1155,8 +1156,8 @@ optimize_with_shorting <- function(alpha, returns){
     returns_period <- returns_tmp[i:(i+35),-1]
     mu[i,] <- colMeans(returns_period)
     Sigma[i,,] <- cov(returns_period)
-      w_min_var[i,] <- optimize_portfolio(mu[i,], Sigma[i,,], alpha)
-      w_max_return[i,] <- optimize_return(mu[i,], alpha)
+      w_min_var[i,] <- optimize_portfolio_shorting(mu[i,], Sigma[i,,], alpha)
+      w_max_return[i,] <- optimize_return_shorting(mu[i,], alpha)
 
       return_min_var <- sum(mu[i,]*w_min_var[i,])
       return_max_return <- sum(mu[i,]*w_max_return[i,])
@@ -1164,7 +1165,7 @@ optimize_with_shorting <- function(alpha, returns){
       target_returns_tmp <- seq(return_min_var, return_max_return, (return_max_return - return_min_var)/(n_internal+1))
       target_returns[i,] <- target_returns_tmp[-c(1, length(target_returns_tmp))]
       for(j in 1:length(target_returns[i,])){
-        w_internal[j,i,] <- optimize_internal(mu[i,], Sigma[i,,], target_returns[i,j], alpha)
+        w_internal[j,i,] <- optimize_internal_shorting(mu[i,], Sigma[i,,], target_returns[i,j], alpha)
       }
   }
   w = array(NA, c(7, dim(w_min_var)[1], dim(w_min_var)[2]))
@@ -1185,6 +1186,13 @@ optimize_with_shorting <- function(alpha, returns){
 
     returns_in_bag[,i] <- rowSums(w[i,,]*mu) + (1-rowSums(alpha*w[i,,c("SMB_US","MOM_US", "SMB_EU", "MOM_EU")]))*returns[36:(nrow(returns)-1),"RF"]
   }
+  
+  Portfolio_names <- c("GMV", paste("Point", 1:5, sep = " "), "Max_return")
+  
+  returns_in_bag <- as_tibble(returns_in_bag)
+  returns_out_of_bag <- as_tibble(returns_out_of_bag)
+  colnames(returns_in_bag) <- Portfolio_names
+  colnames(returns_out_of_bag) <- Portfolio_names
 
   return(
     list(
@@ -1197,24 +1205,22 @@ optimize_with_shorting <- function(alpha, returns){
 }
 
 
-h <- optimize_with_shorting(1/2, returns_all)
+h <- optimize_with_shorting(1, returns_all)
 
-new_names <- c("GMV", "point 1", "point 2", "point 3", "point 4", "point 5", "max_return")
 
 apply(h$returns_out_of_bag, 2, cum_return) %>%
   as_tibble() %>%
-  setNames(new_names) %>%
   cbind(tibble(date = 1:208)) %>%
   pivot_longer(cols = -date, names_to = "Portfolio", values_to = "cum_return") %>% ggplot(aes(date, cum_return, color = Portfolio)) +
     geom_line()
 
-var_short <- rep(NA, 208)
+var_short <- array(NA, c(208, 7))
 for(i in 1:208){
-  var_short[i] <- t(h$w[2,i,])%*%h$Sigma[i,,]%*%h$w[2,i,]
+  for(j in 1:7){
+    var_short[i,j] <- t(h$w[j,i,])%*%h$Sigma[i,,]%*%h$w[j,i,]
+  }
 }
-
-round(h$w[2,,], 3)
-rowSums(h$w[1,,])
+colMeans(var_short)
 ```
 
 # First try at shorting
