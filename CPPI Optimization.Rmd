@@ -404,6 +404,8 @@ colnames(plot_df) <- c("date", new_names)
 
 ### m
 ```{r}
+# guarantees <- readRDS("C:/Users/nikol/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats.rds")
+
 B <- map(guarantees, "C")
 K <- map(guarantees, "Guarantee_end")
 
@@ -450,17 +452,6 @@ short_fall_df %>%
   ggplot(aes(as.numeric(m), short_fall_prop_m)) +
     geom_point() 
 
-
-library(purrr)
-library(stringr)
-library(dplyr)
-
-
-
-library(purrr)
-library(stringr)
-library(dplyr)
-
 # 1. Create the detailed 'min_df' dataframe
 min_df <- K %>%
   imap_dfr(~ {
@@ -486,13 +477,6 @@ mean_of_mins_df <- min_df %>%
 
 # Print the final aggregated dataframe
 print(mean_of_mins_df)
-
-mean(sapply(K, min)[1:106])
-
-
-
-
-
 
 # Shortfall and minimum guarantee
 df_cleaned <- short_fall_df %>% 
@@ -533,7 +517,14 @@ ggplot(df_cleaned, aes(x = m)) +
     x = "Multiplier (m)"
   ) +
   theme_minimal() +
-  theme(legend.position = "top")
+  theme(legend.position = "top") +
+  theme(
+    legend.position = c(0.95, 0.05),
+    legend.justification = c("right", "bottom"),
+    legend.background = element_rect(fill = "white", color = "grey80"),
+    legend.title = element_text(face = "bold"),
+    plot.title = element_text(size = rel(1.1), face = "bold")
+  )
 ```
 
 
@@ -736,7 +727,7 @@ returns_choice <- readRDS("returns_choice.rds")
 # m <- seq(1, 20, 0.5)
 m <- 2.5
 L_target <- 1.27
-L_trigger <- seq(128, 157, 1)/100
+L_trigger <- seq(132, 136, 1)/100
 search_grid = expand.grid(m = m, "L_target" = L_target, "L_trigger" = L_trigger) %>%
   filter(L_target < L_trigger & L_trigger - L_target <= 0.3)
 search_grid <- sort_by(search_grid, ~list(m, L_target, L_trigger))
@@ -880,7 +871,21 @@ as_tibble(map(guarantees_trigger_target, "Guarantee")[paste("2.5x1.27x", seq(1.3
   cbind(tibble(date = 1:89)) %>% 
   pivot_longer(cols = -date, names_to = "Trigger_level", values_to = "Guarantee") %>% 
   ggplot(aes(date, Guarantee, color = Trigger_level)) +
-    geom_line()
+    geom_line(linewidth = 0.8) +
+    theme_minimal() +
+    
+    labs(color = "Trigger Level") + 
+    
+    theme(
+      legend.position = c(0.98, 0.98),
+      legend.justification = c("right", "top"),
+      legend.background = element_rect(
+        fill = "white", 
+        color = "grey80"
+      ),
+      legend.title = element_text(face = "bold")
+    )
+
 
 ```
 ##### Effect for larger values of target
@@ -961,27 +966,26 @@ guarantee_df %>%
     geom_line(size = 1.1) +
     geom_point(size = 2, alpha = 0.7) +
     scale_color_manual(values = values,
-                       breaks=breaks,
-                       labels=labels) +
+                       breaks = breaks,
+                       labels = c("Portfolio 1", "European Equity", "Portfolio 1 (CPPI)")) +
     scale_x_date(date_labels = "%Y", date_breaks = "2 years") +
     scale_y_continuous(labels = scales::number_format(accuracy = 0.01)) +
     labs(
       title = "Development of the Portfolio Guarantee Over Time",
-      subtitle = "Guarantee level implied by CPPI floor mechanism",
-      x = "Date",
+      #subtitle = "Guarantee level implied by CPPI floor mechanism",
+      x = "Start date of TDF",
       y = "Guarantee Value"
     ) +
-    theme_minimal(base_size = 13) +
+    theme_minimal() +
     theme(
-      plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
+      plot.title = element_text(face = "bold", size = 10, hjust = 0.5),
       plot.subtitle = element_text(size = 11, hjust = 0.5, color = "gray40"),
       axis.title = element_text(face = "bold"),
-      panel.grid.minor = element_blank(),
-      panel.grid.major.x = element_blank(),
-      legend.position = "bottom"
+      #panel.grid.minor = element_blank(),
+      #panel.grid.major.x = element_blank(),
+      legend.position = "bottom",
+      legend.title = element_text(face = "bold")
     )
-
-
 ```
 ## recommended CPPI strat with risk parity
 ```{r}

@@ -21,6 +21,7 @@ library(lubridate)
 library(lpSolve)
 library(xtable)
 library(Rsolnp)
+library(patchwork)
 ```
 
 # Loading data
@@ -409,6 +410,8 @@ for(i in 1:n_internal){
   return_internal[,i] <- rowSums(w_internal[i,,]*factors_period[,-1])
 }
 
+
+mean(return_max_return)
 ```
 
 
@@ -725,6 +728,9 @@ ggplot(aes(x = Date, y = Cumulative_return, color = Portfolio)) +
     legend.position = "right",
     legend.title = element_text(face = "bold")
   )
+
+colorRampPalette(c("#D55E00", "#0072B2"))(7)
+
 ```
 
 #### Whole frontier
@@ -745,6 +751,8 @@ new_names <- c("Minimum variance", paste("point", 1:5), "Maximum return", "Europ
 
 colnames(cumulative_return_df) <- new_names
 
+values <- c(colorRampPalette(c("#D55E00", "#0072B2"))(7), "#009E73")
+labels <- c("GMV", paste("Point", 1:5, sep = " "), "Max Return", "EE")
 
 plot_data <- cumulative_return_df %>%
   mutate(Date = ym(factors_period$date)) %>%
@@ -757,10 +765,10 @@ plot_data <- cumulative_return_df %>%
 
 ggplot(plot_data, aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
   geom_line(linewidth = 0.7) +
-  scale_color_viridis_d(option = "viridis") +
+  scale_color_manual(values = values, labels = labels) +
   labs(
     title = "Cumulative Returns of Efficient Frontier Portfolios",
-    subtitle = "Performance of portfolios from Minimum Variance to Maximum Return",
+    #subtitle = "Performance of portfolios from Minimum Variance to Maximum Return",
     x = "Date",
     y = "Cumulative Return",
     color = "Portfolio"
@@ -781,8 +789,82 @@ c(min(apply(return_internal, 2, sd)), max(apply(return_internal, 2, sd)))
 
 which.max(cumulative_return_internal[k,])
 which.min(sd(cumulative_return_internal[k,]))
+
+
+
+
 ```
 
+```{r}
+library(ggplot2)
+library(patchwork)
+library(lubridate)
+library(dplyr)
+
+# (Assuming 'plot_data', 'values', and 'labels' are in your environment)
+
+# 1. Create your main plot
+main_plot <- ggplot(plot_data, aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
+  geom_line(linewidth = 0.7) +
+  
+  # --- ADDED THIS RECTANGLE ---
+  # This highlights the area that the inset plot is zooming in on
+  annotate(
+    "rect",
+    xmin = as.Date("2007-09-01"),
+    xmax = as.Date("2012-08-01"),
+    ymin = -Inf,
+    ymax = Inf,
+    fill = "grey80", 
+    alpha = 0.4
+  ) +
+  # --- END OF ADDED RECTANGLE ---
+  
+  scale_color_manual(values = values, labels = labels) +
+  labs(
+    title = "Cumulative Returns of Efficient Frontier Portfolios",
+    #subtitle = "Performance of portfolios from Minimum Variance to Maximum Return",
+    x = "Date",
+    y = "Cumulative Return",
+    color = "Portfolio"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12),
+    legend.position = "right",
+    legend.title = element_text(face = "bold")
+  )
+
+# 2. Filter the data for the inset
+plot_data_inset <- plot_data %>%
+  filter(Date >= as.Date("2007-09-01") & Date <= as.Date("2012-08-01"))
+
+# 3. Create the inset plot from the filtered data
+inset_plot <- ggplot(plot_data_inset, aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
+  geom_line(linewidth = 0.7) +
+  scale_color_manual(values = values, labels = labels) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    axis.title = element_blank(),
+    axis.text = element_text(size = 8),
+    plot.title = element_blank(),
+    panel.border = element_rect(color = "grey50", fill = NA),
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.background = element_rect(fill = "white", color = NA)
+  )
+
+# 4. Combine the plots
+main_plot +
+  inset_element(
+    inset_plot,
+    left = 0.05,
+    bottom = 0.50,
+    right = 0.55,
+    top = 0.95
+  )
+```
 
 # Risk parity
 ```{r}
@@ -807,6 +889,8 @@ round(w_rp, 3)
 factors_return_calc <- factors[37:nrow(factors),]
 
 return_rp <- rowSums(w_rp[,-1]*factors_return_calc[,-1])
+
+mean(return_rp)
 ```
 
 ## Plot af risk parity
