@@ -1059,7 +1059,14 @@ returns_all <- all_factors %>% filter(date >= 200409 & date <= 202412)
 optimize_with_shorting <- function(alpha, returns){
   
   returns_tmp <- returns %>% 
+    mutate(
+      SMB_US = SMB_US + RF,
+      MOM_US = MOM_US + RF,
+      SMB_EU = SMB_EU + RF,
+      MOM_EU = MOM_EU + RF
+    ) %>% 
     select(-RF)
+    
   
   factor_names <- colnames(returns_tmp[,-1])
   
@@ -1127,7 +1134,14 @@ optimize_with_shorting <- function(alpha, returns){
 
 h <- optimize_with_shorting(1/2, returns_all)
 
-apply(h$returns_out_of_bag, 2, cum_return)[208,]
+new_names <- c("GMV", "point 1", "point 2", "point 3", "point 4", "point 5", "max_return")
+
+apply(h$returns_out_of_bag, 2, cum_return) %>%
+  as_tibble() %>%
+  setNames(new_names) %>% 
+  cbind(tibble(date = 1:208)) %>% 
+  pivot_longer(cols = -date, names_to = "Portfolio", values_to = "cum_return") %>% ggplot(aes(date, cum_return, color = Portfolio)) +
+    geom_line()
 
 var_short <- rep(NA, 208)
 for(i in 1:208){
