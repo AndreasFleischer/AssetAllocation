@@ -831,6 +831,7 @@ for (j in 36:124){
   return(matrix(c(Guarantees,I_Guarantees),ncol = 2))
 }
 
+exp(-All_years$z_1m/100 * seq(10, 0, -1/12))
 ```
 # CPPI plot
 ```{r}
@@ -960,11 +961,11 @@ max_point <- data.frame(SD = sqrt(Sigma[2,2]),
 
 # === Plot ===
 ggplot(ef, aes(x = SD, y = Return)) +
-  geom_path(color = "#1f77b4", size = 1.4, lineend = "round") +
-  geom_point(data = gmv_point, aes(x = SD, y = Return), color = "darkred", size = 3.5) +
-  geom_point(data = max_point, aes(x = SD, y = Return), color = "darkgreen", size = 3.5) +
-  geom_text(data = gmv_point, aes(label = Label), nudge_x = -0.001, nudge_y = 0.001, size = 3) +
-  geom_text(data = max_point, aes(label = Label), nudge_x = -0.002, nudge_y = 0.002, size = 3) +
+  geom_path(color = "#228B22", size = 1.4, lineend = "round") +
+  geom_point(data = gmv_point, aes(x = SD, y = Return), color = "#D55E00", size = 3.5) +
+  geom_point(data = max_point, aes(x = SD, y = Return), color = "#0072B2", size = 3.5) +
+  geom_text(data = gmv_point, aes(label = Label), nudge_x = -0.001, nudge_y = 0.001, size = 3, fontface = "bold") +
+  geom_text(data = max_point, aes(label = Label), nudge_x = -0.002, nudge_y = 0.002, size = 3, fontface = "bold") +
   labs(
     x = expression(sigma),
     y = expression(mu)
@@ -1039,3 +1040,81 @@ ggplot(ef_efficient, aes(x = SD, y = Return)) +
   )
 
 ```
+
+
+# Efficient frontier colors
+```{r}
+library(ggplot2)
+library(grDevices) # Needed for colorRampPalette
+
+# === Colors from the first plot ===
+path_color <- "#228B22" # Forest Green
+gmv_color <- "#D55E00" # Orange
+max_color <- "#0072B2" # Blue
+
+# === Example data ===
+mu <- c(0.08, 0.12)
+Sigma <- matrix(c(0.04^2, 0.04*0.06*0.5,
+                  0.04*0.06*0.5, 0.06^2), nrow = 2)
+
+# === Grid of weights and Efficient Frontier computation ===
+w1 <- seq(0, 1, length.out = 200)
+w2 <- 1 - w1
+port_return <- w1 * mu[1] + w2 * mu[2]
+port_sd <- sqrt(w1^2 * Sigma[1,1] + w2^2 * Sigma[2,2] + 2 * w1 * w2 * Sigma[1,2])
+ef <- data.frame(SD = port_sd, Return = port_return)
+ef <- ef[order(ef$SD), ]
+
+# === Identify Global Minimum Variance (GMV) portfolio ===
+one <- rep(1, 2)
+w_gmv <- solve(Sigma) %*% one / as.numeric(t(one) %*% solve(Sigma) %*% one)
+w_gmv <- as.vector(w_gmv)
+gmv_return <- sum(w_gmv * mu)
+gmv_sd <- sqrt(t(w_gmv) %*% Sigma %*% w_gmv)
+
+# === Keep only efficient (upper) part of the frontier ===
+ef_efficient <- ef[ef$Return >= gmv_return, ]
+
+# Max Return point (needed for the range)
+max_point <- ef_efficient[which.max(ef_efficient$Return), ]
+
+# === Calculate all 7 equidistant points (GMV, 5 interm, Max Return) ===
+# This sequence includes the start (GMV return) and end (Max return) points.
+all_7_returns <- seq(gmv_return, max_point$Return, length.out = 7)
+points_df <- data.frame(Return = all_7_returns)
+points_df$SD <- approx(ef_efficient$Return, ef_efficient$SD, xout = points_df$Return)$y
+points_df$SD[1] <- gmv_sd
+
+# === Generate a 7-color palette from GMV color to Max Return color and apply to all 7 points ===
+full_palette <- colorRampPalette(c(gmv_color, max_color))(7)
+points_df$Color <- full_palette
+
+# === Assign labels for all 7 points ===
+points_df$Label <- "" # Initialize
+points_df$Label[1] <- "GMV"
+points_df$Label[7] <- "Max Return"
+points_df$Label[2:6] <- paste("Portfolio", 1:5) # Portfolios 1-5 are the intermediate points
+
+
+# === Plot ===
+ggplot(ef_efficient, aes(x = SD, y = Return)) +
+  # Path color from first plot
+  geom_path(color = path_color, size = 1.4, lineend = "round") +
+  # Plot all points with their 7-color gradient
+  geom_point(data = points_df, aes(x = SD, y = Return, color = Color), size = 3.5) +
+  scale_color_identity() + # Use the explicit color values in the 'Color' column
+  # Plot labels with bold font
+  geom_text(data = points_df, aes(label = Label),
+            nudge_y = 0.001, nudge_x = -0.002, size = 3, vjust = -0.5, fontface = "bold") +
+  labs(x = expression(sigma), y = expression(mu)) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.6),
+    axis.title.y = element_text(angle = 0, vjust = 0.5)
+  )
+
+```
+
