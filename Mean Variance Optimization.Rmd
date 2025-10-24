@@ -464,57 +464,46 @@ cov_period <- cov(returns_all[,-1])
 n_assets <- length(colMeans(returns_all[,-1]))
 target_variance <- 7 
 
-optimize_b <- function(mean_returns, cov_period, target_variance){
+optimize_b <- function(mean_returns, cov_period, target_variance, alpha){
+  
   n_assets <- length(mean_returns)
   
+  # Scale inputs to avoid conditioning issues
+  cov_period <- cov_period / mean(diag(cov_period))
+  mean_returns <- mean_returns / sd(mean_returns)
+  
   objective_func <- function(w) {
-    portfolio_return <- sum(w * mean_returns)
-    return(-portfolio_return) 
+    port_ret <- sum(w * mean_returns)
+    port_var <- as.numeric(t(w) %*% cov_period %*% w)
+    penalty <- max(0, port_var - target_variance)^2 * 1e6  # penalty weight
+    return(-port_ret + penalty)
   }
   
-  equality_constraints <- function(w) {
-    #portfolio_var <- t(w) %*% cov_period %*% w
-    sum_of_weights <- sum(w[c(1, 4, 7)])
-    #return(c(portfolio_var, sum_of_weights))
-    return(sum_of_weights)
-  }
+  equality_constraints <- function(w){sum(w[c(1, 4)]) + alpha*sum(w[c(2, 3, 5, 6)])}
   
-  equality_targets <- c(
-    #target_variance, 
-    1                
-  )
+  ineqfun <- function(w) as.numeric(t(w) %*% cov_period %*% w)
   
-  inequality_constraints <- function(w){
-    portfolio_var <- t(w) %*% cov_period %*% w
-    return(portfolio_var)
-  }
+  lower_bounds <- rep(0, n_assets) 
+  upper_bounds <- rep(1/alpha, n_assets)
   
-  inequality_upper <- target_variance
-  inequality_lower <- 0
-  
-  initial_weights <- rep(1 / n_assets, n_assets)
-  
-  lower_bounds <- c(rep(-5, n_assets-1), 0)
-  upper_bounds <- rep(5, n_assets)
+  # start at feasible point
+  w0 <- rep(0, n_assets)
+  w0[c(1,4)] <- c(1/2, 1/2)
   
   sol <- solnp(
-    pars = initial_weights,
+    pars = w0,
     fun = objective_func,
     eqfun = equality_constraints,
-    eqB = equality_targets,
-    ineqfun = inequality_constraints,
-    ineqUB = inequality_upper,
-    ineqLB = inequality_lower,
+    eqB = 1,
     LB = lower_bounds,
     UB = upper_bounds,
-    control = list(trace = 0, rho = 1000)
+    control = list(trace = 0, tol = 1e-9)
   )
   
   return(sol$pars)
 }
 
-
-optimal_weights <- optimize_b(colMeans(returns_all[,-1]), cov(returns_all[,-1]), 10)
+optimal_weights <- optimize_b(colMeans(returns_all[,2:7]), cov(returns_all[,2:7]), 10, 1/2)
 print(round(optimal_weights, 3))
 t(optimal_weights)%*%cov_period%*%optimal_weights
 ```
@@ -526,6 +515,8 @@ target_variance <- rep(0, n)
 for(i in 1:n){
   target_variance[i] <- t(w_internal[1,i,])%*%Sigma[i,,]%*%w_internal[1,i,]
 }
+
+alpha <- 1
 
 
 
@@ -539,7 +530,7 @@ for(i in 1:n){
   returns_all_period <- returns_all[i:(i+35),-1]
   mu_b[i,] <- colMeans(returns_all_period)
   Sigma_b[i,,] <- cov(returns_all_period)
-  w_b[i,] <- optimize_b(mu_b[i,], Sigma_b[i,,], target_variance[i])
+  w_b[i,] <- optimize_b(mu_b[i,], Sigma_b[i,,], target_variance[i], alpha)
 }
 
 
@@ -558,7 +549,7 @@ for(i in 1:n){
 
 w_b[190:208,]
 
-sum(round(var_short, 0) != round(target_variance, 0))
+sum(round(var_short, 0) <= round(target_variance, 0))
 
 var_short >= target_variance
 
@@ -1128,14 +1119,16 @@ cum_return <- function(x){
 ## Optimization
 ```{r}
 optimize_with_shorting <- function(alpha, returns){
+  
+  excess_returns <- sweep(returns, 1, returns$RF, "-")
 
-  returns_tmp <- returns %>%
-    mutate(
-      SMB_US = SMB_US + alpha*RF,
-      MOM_US = MOM_US + alpha*RF,
-      SMB_EU = SMB_EU + alpha*RF,
-      MOM_EU = MOM_EU + alpha*RF
-    ) %>%
+  returns_tmp <- excess_returns %>%
+    # mutate(
+    #   SMB_US = SMB_US + alpha*RF,
+    #   MOM_US = MOM_US + alpha*RF,
+    #   SMB_EU = SMB_EU + alpha*RF,
+    #   MOM_EU = MOM_EU + alpha*RF
+    # ) %>%
     select(-RF)
 
 
@@ -1145,14 +1138,16 @@ optimize_with_shorting <- function(alpha, returns){
   n <- nrow(returns_tmp) - 35 - 1
   w_min_var <- matrix(NA, nrow = n, ncol = n_assets)
   w_max_return <- matrix(NA, nrow = n, ncol = n_assets)
+  RF <- rep(NA, n)
 
-  n_internal <- 5
+  n_internal <- 20
   w_internal <- array(NA, dim = c(n_internal, n, n_assets))
   target_returns <- array(NA, c(n, n_internal))
   Sigma <- array(NA, c(n, n_assets, n_assets))
   mu <- array(NA, c(n, n_assets))
 
   for(i in 1:n){
+    RF[i] <- mean(returns$RF[i:(i+35)])
     returns_period <- returns_tmp[i:(i+35),-1]
     mu[i,] <- colMeans(returns_period)
     Sigma[i,,] <- cov(returns_period)
@@ -1168,10 +1163,10 @@ optimize_with_shorting <- function(alpha, returns){
         w_internal[j,i,] <- optimize_internal_shorting(mu[i,], Sigma[i,,], target_returns[i,j], alpha)
       }
   }
-  w = array(NA, c(7, dim(w_min_var)[1], dim(w_min_var)[2]))
+  w = array(NA, c(n_internal+2, dim(w_min_var)[1], dim(w_min_var)[2]))
   w[1,,] <- w_min_var
-  w[2:6,,] <- w_internal
-  w[7,,] <- w_max_return
+  w[2:(n_internal+1),,] <- w_internal
+  w[(n_internal+2),,] <- w_max_return
 
 
   current_dimnames <- dimnames(w)
@@ -1182,12 +1177,12 @@ optimize_with_shorting <- function(alpha, returns){
   returns_out_of_bag <- returns_in_bag <-array(NA, c(n, dim(w)[[1]]))
 
   for(i in 1:dim(w)[[1]]){
-    returns_out_of_bag[,i] <- rowSums(w[i,,]*factors_out_of_bag[,2:7]) + (1-rowSums(alpha*w[i,,c("SMB_US","MOM_US", "SMB_EU", "MOM_EU")]))*factors_out_of_bag[,"RF"]
+    returns_out_of_bag[,i] <- rowSums(w[i,,]*factors_out_of_bag[,2:7]) + rowSums(alpha*w[i,,c("SMB_US","MOM_US", "SMB_EU", "MOM_EU")])*factors_out_of_bag[,"RF"]
 
-    returns_in_bag[,i] <- rowSums(w[i,,]*mu) + (1-rowSums(alpha*w[i,,c("SMB_US","MOM_US", "SMB_EU", "MOM_EU")]))*returns[36:(nrow(returns)-1),"RF"]
+    returns_in_bag[,i] <- rowSums(w[i,,]*mu) + rowSums(alpha*w[i,,c("SMB_US","MOM_US", "SMB_EU", "MOM_EU")])*returns[36:(nrow(returns)-1),"RF"]
   }
   
-  Portfolio_names <- c("GMV", paste("Point", 1:5, sep = " "), "Max_return")
+  Portfolio_names <- c("GMV", paste("Point", 1:n_internal, sep = " "), "Max_return")
   
   returns_in_bag <- as_tibble(returns_in_bag)
   returns_out_of_bag <- as_tibble(returns_out_of_bag)
@@ -1199,13 +1194,20 @@ optimize_with_shorting <- function(alpha, returns){
       "w" = w,
       "returns_in_bag" = returns_in_bag,
       "returns_out_of_bag" = returns_out_of_bag,
-      "Sigma" = Sigma
+      "Sigma" = Sigma,
+      "mu" = mu,
+      "RF" = RF
     )
   )
 }
+```
 
+## Sammenligning shorting and no shorting
+```{r}
+returns_choice <- readRDS("returns_choice.rds")
 
-h <- optimize_with_shorting(1, returns_all)
+alpha <- 1/4
+h <- optimize_with_shorting(alpha, returns_all)
 
 
 apply(h$returns_out_of_bag, 2, cum_return) %>%
@@ -1214,14 +1216,52 @@ apply(h$returns_out_of_bag, 2, cum_return) %>%
   pivot_longer(cols = -date, names_to = "Portfolio", values_to = "cum_return") %>% ggplot(aes(date, cum_return, color = Portfolio)) +
     geom_line()
 
-var_short <- array(NA, c(208, 7))
-for(i in 1:208){
-  for(j in 1:7){
-    var_short[i,j] <- t(h$w[j,i,])%*%h$Sigma[i,,]%*%h$w[j,i,]
+var_short_in_bag <- array(NA, c(208, 22))
+sd_short_out_bag <- rep(NA, 22)
+
+for(j in 1:22){
+  for(i in 1:208){
+    var_short_in_bag[i,j] <- t(h$w[j,i,])%*%h$Sigma[i,,]%*%h$w[j,i,]
   }
+  sd_short_out_bag[j] <- sd(unlist(h$returns_out_of_bag[,j]))
 }
-colMeans(var_short)
+
+print("cumulative return")
+apply(h$returns_out_of_bag, 2, cum_return)[208,]
+cum_return(returns_choice$return)[208]
+
+print("mean return")
+((1+colMeans(h$returns_out_of_bag/100))^12-1)*100
+((1+mean(returns_choice$return/100))^12-1)*100
+
+print("volatilitet")
+sd_short_out_bag
+sd(returns_choice$return)
+
+
+
+
+index_target_var <- rowSums(var_short_in_bag <= target_variance)
+
+w_target_var <- array(NA, c(208, 6))
+for(i in 1:208){
+  w_target_var[i,] <- h$w[index_target_var[i], i,]
+}
+
+
+
+
+mean(rowSums(mu*w_target_var + rowSums(alpha*w_target_var[,c(2, 3, 5, 6)])*h$RF))
+
+mean(rowSums(mu*w_internal[1,,]))
+
+returns_target_var <- rowSums(w_target_var*returns_all[37:nrow(returns_all),2:7]) + rowSums(alpha*w_target_var[,c(2, 3, 5, 6)]*returns_all[37:nrow(returns_all), 8])
+
+cum_return(returns_target_var)
+
+sd(returns_target_var)
 ```
+
 
 # First try at shorting
 
