@@ -44,14 +44,13 @@ size_mom_6_euro <- download_french_data("6 European Portfolios Formed on Size an
 size_mom_25_euro <- download_french_data("25 European Portfolios Formed on Size and Momentum (5 x 5)")
 
 # Other
-# setwd("/Users/andreas/Documents/Uni/5. År/Asset Allocation (PUK)")
-#exchange_rate <- read_csv("GitHub/AssetAllocation/Data AA/eurofxref-hist.csv") # Tror det er valutakurser
-exchange_rate <- read_csv("Data AA/eurofxref-hist.csv") #
+setwd("/Users/andreas/Documents/Uni/5. År/Asset Allocation (PUK)")
+exchange_rate <- read_csv("GitHub/AssetAllocation/Data AA/eurofxref-hist.csv") # Tror det er valutakurser
+# exchange_rate <- read_csv("Data AA/eurofxref-hist.csv") #
 # Yield_curve_1_year <- read_csv("Data AA/Yield curve 1 year.csv")
 # Yield_curve <- read_csv("Data AA/Yield curve full.csv")
 
-# All_years <- readRDS("GitHub/AssetAllocation/All_years_ready.rds")
-All_years <- readRDS("All_years_ready.rds")
+All_years <- readRDS("GitHub/AssetAllocation/All_years_ready.rds")
 ```
 
 # US-US (MKT)
@@ -541,7 +540,7 @@ summary(lm((MOM_EU_EU_long$MOM[1:244]-All_years$return)~1))$coefficients*c(1,sqr
 ```
 
 ```{r}
-readRDS("new_factors.rds")
+readRDS("GitHub/AssetAllocation/new_factors.rds")
 ```
 
 # Time-Series (EU-US) Long-Only
@@ -865,7 +864,7 @@ ggplot(CPPI_plot_df, aes(x = Date, y = Value, color = Type)) +
   scale_y_continuous(labels = number_format(accuracy = 0.01)) +
   labs(
     title = "Development of CPPI Portfolio Guarantees",
-    subtitle = "Comparison between Portfolio 1, European Equity",
+    subtitle = "Comparison between Portfolio 1 and European Equity",
     x = "Date",
     y = "Guarantee",
     color = "Strategy"
@@ -875,16 +874,20 @@ ggplot(CPPI_plot_df, aes(x = Date, y = Value, color = Type)) +
     plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
     plot.subtitle = element_text(size = 11, hjust = 0.5, color = "gray40"),
     axis.title = element_text(face = "bold"),
-    legend.position = "bottom",
+    legend.position = "right",
     legend.title = element_text(face = "bold"),
     panel.grid.minor = element_blank(),
-    panel.grid.major.x = element_blank()
+    panel.grid.major.x = element_line(color = "gray85")  # add vertical grid lines
   ) +
-  scale_color_manual(values = c(
-    "European Equity" = "#0072B2",     # blue
-    "Portfolio 1" = "#E41A1C",         # red
-    "Initial Guarantee" = "#009E73"    # green
-  ))
+  scale_color_manual(
+    values = c(
+      "European Equity" = "#0072B2",     # blue
+      "Portfolio 1" = "#E41A1C",         # red
+      "Initial Guarantee" = "#009E73"    # green
+    ),
+    limits = c("European Equity", "Portfolio 1", "Initial Guarantee")  # order legend
+  )
+
 ```
 # CPPI Histogram
 ```{r}
