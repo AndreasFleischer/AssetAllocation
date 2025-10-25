@@ -1205,6 +1205,12 @@ optimize_with_shorting <- function(alpha, returns){
 ## Sammenligning shorting and no shorting
 ```{r}
 returns_choice <- readRDS("returns_choice.rds")
+n <- 208
+target_variance <- rep(0, n)
+for(i in 1:n){
+  target_variance[i] <- t(w_internal[1,i,])%*%Sigma[i,,]%*%w_internal[1,i,]
+}
+
 
 alpha <- 1/4
 h <- optimize_with_shorting(alpha, returns_all)
@@ -1249,19 +1255,64 @@ for(i in 1:208){
 }
 
 
-
-
+print("Mean Expected returns Target variance")
 mean(rowSums(mu*w_target_var + rowSums(alpha*w_target_var[,c(2, 3, 5, 6)])*h$RF))
 
-mean(rowSums(mu*w_internal[1,,]))
+print("Difference in mean expected return")
+mean(rowSums(mu*w_target_var + rowSums(alpha*w_target_var[,c(2, 3, 5, 6)])*h$RF)) - mean(mu)
 
+print("Out of bag returns target variance")
 returns_target_var <- rowSums(w_target_var*returns_all[37:nrow(returns_all),2:7]) + rowSums(alpha*w_target_var[,c(2, 3, 5, 6)]*returns_all[37:nrow(returns_all), 8])
 
-cum_return(returns_target_var)
-
+cum_return(returns_target_var)[n]
+mean(returns_target_var)
 sd(returns_target_var)
+
+
+
+mean(returns_choice$return)
+
+
 ```
 
+```{r}
+returns_tmp <- array(NA, c(n, 3))
+returns_tmp[,3] <- returns_target_var
+
+returns_alpha <- cbind(returns_tmp, returns_choice$return)
+cum_returns_alpha <- apply(returns_alpha, 2, cum_return)
+cum_returns_alpha <- as_tibble(cbind(returns_choice$date, cum_returns_alpha))
+colnames(cum_returns_alpha) <- c("date", "alpha_1", "alpha_0.5", "alpha_0.25", "Portfolio_1")
+
+cum_returns_alpha %>% 
+  pivot_longer(cols = -date, names_to = "Portfolio", values_to = "Return") %>% 
+  filter(date <= 201101) %>%  
+  ggplot(aes(ym(date), Return, color = Portfolio)) +
+    geom_line(linewidth = 1.2) +
+    xlab("Date") +
+    ggtitle("Performance of shorting strategies under financial crisis", "2007-2011") +
+    scale_color_discrete(
+    labels = c(
+      "Portfolio_1" = "Portfolio 1",
+      "alpha_1" = "alpha = 1",
+      "alpha_0.5" = "alpha = 0.5",
+      "alpha_0.25" = "alpha = 0.25"
+    )
+  ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold", size = 16),
+      legend.title = element_text(face = "bold", size = 10),
+      legend.position = "bottom",
+      # legend.position = c(0.95, 0.95),
+      # legend.justification = c("right", "top"),
+      # legend.background = element_rect(
+      #   fill = "white", 
+      #   color = "grey80"
+      # )
+    )
+
+```
 
 # First try at shorting
 
