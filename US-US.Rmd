@@ -44,15 +44,13 @@ size_mom_6_euro <- download_french_data("6 European Portfolios Formed on Size an
 size_mom_25_euro <- download_french_data("25 European Portfolios Formed on Size and Momentum (5 x 5)")
 
 # Other
-# setwd("/Users/andreas/Documents/Uni/5. År/Asset Allocation (PUK)")
-# exchange_rate <- read_csv("GitHub/AssetAllocation/Data AA/eurofxref-hist.csv") # Tror det er valutakurser
-exchange_rate <- read_csv("Data AA/eurofxref-hist.csv") #
+setwd("/Users/andreas/Documents/Uni/5. År/Asset Allocation (PUK)")
+exchange_rate <- read_csv("GitHub/AssetAllocation/Data AA/eurofxref-hist.csv") # Tror det er valutakurser
+# exchange_rate <- read_csv("Data AA/eurofxref-hist.csv") #
 # Yield_curve_1_year <- read_csv("Data AA/Yield curve 1 year.csv")
 # Yield_curve <- read_csv("Data AA/Yield curve full.csv")
 
-# All_years <- readRDS("GitHub/AssetAllocation/All_years_ready.rds")
-
-All_years <- readRDS("All_years_ready.rds")
+All_years <- readRDS("GitHub/AssetAllocation/All_years_ready.rds")
 ```
 
 # US-US (MKT)
@@ -504,6 +502,8 @@ all_factors <- data.frame(MKT_US = MKT_EU_US$Mkt[1:244]-All_years$return,
                           MKT_EU = MKT_EU_EU$Mkt[1:244]-All_years$return,
                           SMB_EU = SMB_EU_EU$SMB[1:244],
                           MOM_EU = MOM_EU_EU$MOM[1:244])
+
+round(((1+colMeans(all_factors)/100)^12-1)*100,3)
 round(cor(all_factors),2)
 ```
 
@@ -671,7 +671,7 @@ recommended_factors_long <- data.frame(SMB_US = SMB_EU_EU_long$SMB[1:244]-All_ye
                                   SMB_EU = SMB_EU_EU_long$SMB[1:244]-All_years$return,
                                   MOM_EU = MOM_EU_EU_long$MOM[1:244]-All_years$return)
 
-round(colMeans(recommended_factors_long),3)
+round(((1+colMeans(recommended_factors_long)/100)^12-1)*100,3)
 round(cov(recommended_factors_long),3)
 
 all_factors_long <- data.frame(MKT_US = MKT_EU_US$Mkt[1:244]-All_years$return,
@@ -682,6 +682,7 @@ all_factors_long <- data.frame(MKT_US = MKT_EU_US$Mkt[1:244]-All_years$return,
                                MOM_EU = MOM_EU_EU_long$MOM[1:244])
 round(cor(all_factors_long),2)
 round(cov(all_factors_long),2)
+round(((1+colMeans(all_factors_long)/100)^12-1)*100,3)
 ```
 
 
@@ -805,7 +806,6 @@ for (j in 36:124){
     P_T = exp(-z/100 * TTM))
   ZCB_prices$P_T[121] <- 1
   E_returns <- unlist((return_series %>% filter(ym(date) >= All_years$TIME_PERIOD[j]))[,2])/100
-  
   W <- 100
   Floor <- W/L_target
   C <- W-Floor
@@ -832,6 +832,7 @@ for (j in 36:124){
 }
   return(matrix(c(Guarantees,I_Guarantees),ncol = 2))
 }
+CPPI(1,L_target,L_trigger,MKT_EU_EU)
 
 exp(-All_years$z_1m/100 * seq(10, 0, -1/12))
 ```
@@ -866,15 +867,13 @@ ggplot(CPPI_plot_df, aes(x = Date, y = Value, color = Type)) +
   scale_y_continuous(labels = number_format(accuracy = 0.01)) +
   labs(
     title = "Development of CPPI Portfolio Guarantees",
-    subtitle = "Comparison between Portfolio 1 and European Equity",
-    x = "Date",
+    x = "Start date of TDF",
     y = "Guarantee",
-    color = "Strategy"
+    color = "Portfolio"
   ) +
   theme_minimal(base_size = 11) +
   theme(
-    plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
-    plot.subtitle = element_text(size = 11, hjust = 0.5, color = "gray40"),
+    plot.title = element_text(face = "bold", size = 15),
     axis.title = element_text(face = "bold"),
     legend.position = "right",
     legend.title = element_text(face = "bold"),
@@ -883,9 +882,9 @@ ggplot(CPPI_plot_df, aes(x = Date, y = Value, color = Type)) +
   ) +
   scale_color_manual(
     values = c(
-      "European Equity" = "#0072B2",     # blue
-      "Portfolio 1" = "#E41A1C",         # red
-      "Initial Guarantee" = "#009E73"    # green
+      "European Equity" = "#009E73",     # blue
+      "Portfolio 1" = "#B1611D",         # red
+      "Initial Guarantee" = "#00B4CE"    # green
     ),
     limits = c("European Equity", "Portfolio 1", "Initial Guarantee")  # order legend
   )
@@ -968,10 +967,10 @@ max_point <- data.frame(SD = sqrt(Sigma[2,2]),
 # === Plot ===
 ggplot(ef, aes(x = SD, y = Return)) +
   geom_path(color = "#228B22", size = 1.4, lineend = "round") +
-  geom_point(data = gmv_point, aes(x = SD, y = Return), color = "#D55E00", size = 3.5) +
-  geom_point(data = max_point, aes(x = SD, y = Return), color = "#0072B2", size = 3.5) +
-  geom_text(data = gmv_point, aes(label = Label), nudge_x = -0.001, nudge_y = 0.001, size = 3, fontface = "bold") +
-  geom_text(data = max_point, aes(label = Label), nudge_x = -0.002, nudge_y = 0.002, size = 3, fontface = "bold") +
+  geom_point(data = gmv_point, aes(x = SD, y = Return), color = "#D55E00", size = 2.5) +
+  geom_point(data = max_point, aes(x = SD, y = Return), color = "#0072B2", size = 2.5) +
+  geom_text(data = gmv_point, aes(label = Label), nudge_x = -0.002, nudge_y = 0.0009, size = 2.3, fontface = "bold") +
+  geom_text(data = max_point, aes(label = Label), nudge_x = -0.002, nudge_y = 0.003, size = 2.3, fontface = "bold") +
   labs(
     x = expression(sigma),
     y = expression(mu)
@@ -984,7 +983,7 @@ ggplot(ef, aes(x = SD, y = Return)) +
     axis.line = element_line(color = "black", linewidth = 0.6),  # add clean axes
     plot.title = element_text(face = "bold", hjust = 0.5),
     axis.title.y = element_text(angle = 0, vjust = 0.5)  # rotate μ clockwise
-  )
+  ) +ylim(c(0.085,0.125))
 
 ```
 
@@ -1099,7 +1098,7 @@ points_df$Color <- full_palette
 points_df$Label <- "" # Initialize
 points_df$Label[1] <- "GMV"
 points_df$Label[7] <- "Max Return"
-points_df$Label[2:6] <- paste("Portfolio", 1:5) # Portfolios 1-5 are the intermediate points
+points_df$Label[2:6] <- paste("Pf.", 1:5) # Portfolios 1-5 are the intermediate points
 
 
 # === Plot ===
@@ -1107,11 +1106,11 @@ ggplot(ef_efficient, aes(x = SD, y = Return)) +
   # Path color from first plot
   geom_path(color = path_color, size = 1.4, lineend = "round") +
   # Plot all points with their 7-color gradient
-  geom_point(data = points_df, aes(x = SD, y = Return, color = Color), size = 3.5) +
+  geom_point(data = points_df, aes(x = SD, y = Return, color = Color), size = 2.5) +
   scale_color_identity() + # Use the explicit color values in the 'Color' column
   # Plot labels with bold font
   geom_text(data = points_df, aes(label = Label),
-            nudge_y = 0.001, nudge_x = -0.002, size = 3, vjust = -0.5, fontface = "bold") +
+            nudge_y = 0.0009, nudge_x = -0.002, size = 2.3, vjust = -0.5, fontface = "bold") +
   labs(x = expression(sigma), y = expression(mu)) +
   theme_minimal(base_size = 14) +
   theme(
@@ -1119,8 +1118,46 @@ ggplot(ef_efficient, aes(x = SD, y = Return)) +
     axis.ticks = element_blank(),
     panel.grid = element_blank(),
     axis.line = element_line(color = "black", linewidth = 0.6),
-    axis.title.y = element_text(angle = 0, vjust = 0.5)
+    axis.title.y = element_text(angle = 0, vjust = 0.5),
+  )+ylim(c(0.085,0.125))
+
+```
+
+# Plot af renteniveau
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Assume All_years has:
+# TIME_PERIOD (Date) and z (monthly risk-free rate in percent)
+
+# Ensure ordered by time
+All_years <- All_years %>%
+  arrange(TIME_PERIOD)
+
+# Define QE period (optional shading)
+QE_start <- as.Date("2009-01-01")
+QE_end   <- as.Date("2021-12-31")
+
+# Plot
+p <- ggplot(All_years, aes(x = TIME_PERIOD, y = z_1m)) +
+  # Optional: shade QE period
+  annotate("rect", xmin = QE_start, xmax = QE_end, ymin = -Inf, ymax = Inf,
+           alpha = 0.1, fill = "grey50") +
+  geom_line(color = "steelblue", size = 1) +
+  labs(
+    title = "Risk-Free Rate",
+    x = "Time",
+    y = "Annualized return (%)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold",size = 15),
+    axis.title.y = element_text(face = "bold", size = 11),
+    axis.title.x = element_text(face = "bold", size = 11),
+    panel.grid.minor = element_blank()
   )
 
+print(p)
 ```
 
