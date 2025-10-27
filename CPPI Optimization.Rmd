@@ -365,8 +365,6 @@ names(guarantees) <- new_names
 
 # guarantees <- readRDS("C:/Users/nikol/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats.rds")
 
-
-
 plot_df <- as_tibble(map(guarantees, 1))
 plot_df <- cbind(tibble(date = All_years$TIME_PERIOD[36:124]), plot_df)
 colnames(plot_df) <- c("date", new_names)
@@ -492,10 +490,10 @@ scale_factor <- max(df_cleaned$short_fall_prop_m) / max(df_cleaned$mean_of_mins)
 
 ggplot(df_cleaned, aes(x = m)) +
   
-  geom_line(aes(y = short_fall_prop_m, color = "Shortfall Prop"), size = 1.2) +
+  geom_line(aes(y = short_fall_prop_m, color = "Shortfall Probability"), size = 1.2) +
   geom_point(aes(y = short_fall_prop_m), color = "#0072B2", size = 2.5) +
   
-  geom_line(aes(y = mean_of_mins * scale_factor, color = "Mean of Mins"), size = 1.2) +
+  geom_line(aes(y = mean_of_mins * scale_factor, color = "Minimum guarantee"), size = 1.2) +
   geom_point(aes(y = mean_of_mins * scale_factor), color = "#D55E00", size = 2.5) +
   
   scale_y_continuous(
@@ -508,22 +506,26 @@ ggplot(df_cleaned, aes(x = m)) +
   ) +
   scale_x_continuous(breaks = seq(1, 20, by = 2)) +
   scale_color_manual(
-    name = "Metric",
-    values = c("Shortfall Prop" = "#0072B2", "Mean of Mins" = "#D55E00")
+    name = "",
+    values = c("Shortfall Probability" = "#0072B2", "Minimum guarantee" = "#D55E00")
   ) +
   
   labs(
-    title = "Shortfall Probability vs. Mean of Mins by Multiplier",
+    title = "Shortfall Probability and minimum guarantee",
     x = "Multiplier (m)"
   ) +
   theme_minimal() +
-  theme(legend.position = "top") +
   theme(
-    legend.position = c(0.95, 0.05),
-    legend.justification = c("right", "bottom"),
-    legend.background = element_rect(fill = "white", color = "grey80"),
-    legend.title = element_text(face = "bold"),
-    plot.title = element_text(size = rel(1.1), face = "bold")
+    legend.position = "bottom",
+    # legend.position = c(0.95, 0.05),
+    # legend.justification = c("right", "bottom"),
+    # legend.background = element_rect(fill = "white", color = "grey80"),
+    legend.title = element_text(face = "bold", size = 15),
+    plot.title = element_text(size = rel(1.1), face = "bold"),
+    legend.margin = margin(t = -10, r = 0, b = 0, l = 0, unit = "pt"),
+    axis.title.x = element_text(face = "bold", size = 11),
+    axis.title.y = element_text(face = "bold", size = 11)
+    
   )
 ```
 
@@ -583,7 +585,7 @@ ggplot(df_cleaned, aes(x = m)) +
 
 ### Initial guarantee m = 2.5
 ```{r}
-guarantees_m_2.5 <- readRDS("C:/Users/Nikolaj/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats_m_2.5")
+# guarantees_m_2.5 <- readRDS("C:/Users/Nikolaj/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats_m_2.5")
 g_initial <- map(guarantees_m_2.5, "Guarantee_month")
 
 initial_guarantee <- map_dfc(g_initial, ~ .[1,])
@@ -724,10 +726,12 @@ ggplot(df_cleaned_quantile, aes(x = m)) +
 ```{r}
 returns_choice <- readRDS("returns_choice.rds")
 
+
+
 # m <- seq(1, 20, 0.5)
 m <- 2.5
 L_target <- 1.27
-L_trigger <- seq(132, 136, 1)/100
+L_trigger <- seq(128, 157, 1)/100
 search_grid = expand.grid(m = m, "L_target" = L_target, "L_trigger" = L_trigger) %>%
   filter(L_target < L_trigger & L_trigger - L_target <= 0.3)
 search_grid <- sort_by(search_grid, ~list(m, L_target, L_trigger))
@@ -738,6 +742,8 @@ new_names <- apply(search_grid, 1, paste, collapse = "x")
 # set3 <- L_trigger*100
 # all_combinations_df <- expand.grid(set1, set2, set3)
 # new_names <- apply(all_combinations_df, 1, paste, collapse = "x")
+
+
 
 guarantees_trigger_target <- vector(mode = "list", length = nrow(search_grid))
 for(i in 1:nrow(search_grid)){
@@ -800,7 +806,9 @@ enframe(guarantees_target_mean, name = "name_str", value = "guarantees") %>%
 
 ### Trigger
 ```{r}
-guarantees_trigger <- map(guarantees_trigger_target, "Guarantees")
+# guarantees_trigger_target <- readRDS("C:/Users/nikol/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats_m_2.5")
+
+guarantees_trigger <- map(guarantees_trigger_target, "Guarantee")
 
 guarantees_trigger_mean <- sapply(guarantees_trigger, mean)
 enframe(guarantees_target_mean, name = "name_str", value = "guarantees") %>%
@@ -834,7 +842,7 @@ Trigger_hit <- map(guarantees_trigger_target, "Trigger_hit")
 Trigger_hit_df <- as.tibble(lapply(Trigger_hit, colSums))
 
 summary_df <- Trigger_hit_df %>%
-  summarise(across(everything(), function(x)quantile(x, p = 0.5))) %>%
+  summarise(across(everything(), median)) %>%
   
   pivot_longer(
     cols = everything(),
@@ -857,12 +865,23 @@ ggplot(summary_df, aes(x = Trigger, y = column_mean)) +
                                  max(summary_df$column_mean), 
                                  by = 5)) +
   labs(
-    title = "Median Value of tie-ins by Trigger level",
-    subtitle = "For m = 2.5 and Target level = 1.27",
+    title = "Median number of tie-ins by Trigger level",
     x = "Trigger Level",
-    y = "Median value of tie-ins"
+    y = "Median number of tie-ins"
   ) +
-  theme_minimal()
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    # legend.position = c(0.95, 0.05),
+    # legend.justification = c("right", "bottom"),
+    # legend.background = element_rect(fill = "white", color = "grey80"),
+    legend.title = element_text(face = "bold", size = 15),
+    plot.title = element_text(size = rel(1.1), face = "bold"),
+    legend.margin = margin(t = -10, r = 0, b = 0, l = 0, unit = "pt"),
+    axis.title.x = element_text(face = "bold", size = 11),
+    axis.title.y = element_text(face = "bold", size = 11)
+    
+  )
 ```
 ##### guarantees for trigger 132-136
 ```{r}
@@ -934,6 +953,7 @@ colnames(mkt_EU_period) <- c("date", "return")
 guarantees_choice <- CPPI(1, 1.25, 1.3, returns_choice)
 guarantees_EU_equity <- CPPI(1, 1.25, 1.3, mkt_EU_period)
 guarantees_recommended <- CPPI(m, L_target, L_trigger, returns_choice)
+guarantees_rp <- CPPI(m, L_target, L_trigger, return_rp_df)
 
 guarantee_df <- data.frame(date = All_years$TIME_PERIOD[36:124],
                            "Portfolio 1" = guarantees_choice$Guarantee,
@@ -941,9 +961,9 @@ guarantee_df <- data.frame(date = All_years$TIME_PERIOD[36:124],
                            "Portfolio 1 Recommended" = guarantees_recommended$Guarantee)
 
 values = c(
-  "Portfolio.1" = "#0072B2", 
-  "European.Equity" = "#D55E00", 
-  "Portfolio.1.Recommended" = "#009E73"
+  "Portfolio.1" = colors_pal[2], 
+  "European.Equity" = "#009E73", 
+  "Portfolio.1.Recommended" = "orange"
 )
 
 breaks = c(
@@ -953,9 +973,9 @@ breaks = c(
 )
 
 labels = c(
-  "Portfolio 1", 
-  "European Equity", 
-  "Recommended strat"
+  "Pf 1", 
+  "EE", 
+  "Pf 1 (CPPI)"
 )
 
 
@@ -963,29 +983,31 @@ labels = c(
 guarantee_df %>%
   pivot_longer(cols = -date, names_to = "Portfolio", values_to = "Guarantee") %>%
   ggplot(aes(x = as.Date(date), y = Guarantee, color = Portfolio)) +
-    geom_line(size = 1.1) +
+    geom_line(size = 1) +
     geom_point(size = 2, alpha = 0.7) +
     scale_color_manual(values = values,
                        breaks = breaks,
-                       labels = c("Portfolio 1", "European Equity", "Portfolio 1 (CPPI)")) +
+                       labels = labels) +
     scale_x_date(date_labels = "%Y", date_breaks = "2 years") +
     scale_y_continuous(labels = scales::number_format(accuracy = 0.01)) +
     labs(
-      title = "Development of the Portfolio Guarantee Over Time",
+      title = "Development of recommended CPPI Guarantees",
       #subtitle = "Guarantee level implied by CPPI floor mechanism",
       x = "Start date of TDF",
-      y = "Guarantee Value"
+      y = "Guarantee"
     ) +
     theme_minimal() +
     theme(
-      plot.title = element_text(face = "bold", size = 10, hjust = 0.5),
-      plot.subtitle = element_text(size = 11, hjust = 0.5, color = "gray40"),
-      axis.title = element_text(face = "bold"),
-      #panel.grid.minor = element_blank(),
-      #panel.grid.major.x = element_blank(),
-      legend.position = "bottom",
-      legend.title = element_text(face = "bold")
-    )
+    legend.position = "bottom",
+    # legend.position = c(0.95, 0.05),
+    # legend.justification = c("right", "bottom"),
+    # legend.background = element_rect(fill = "white", color = "grey80"),
+    legend.title = element_text(face = "bold", size = 10),
+    plot.title = element_text(size = rel(1.1), face = "bold"),
+    legend.margin = margin(t = -10, r = 0, b = 0, l = 0, unit = "pt"),
+    axis.title.x = element_text(face = "bold", size = 11),
+    axis.title.y = element_text(face = "bold", size = 11)
+  )
 ```
 ## recommended CPPI strat with risk parity
 ```{r}
