@@ -418,17 +418,7 @@ for(i in 1:n_internal){
   return_internal[,i] <- rowSums(w_internal[i,,]*factors_period[,-1])
 }
 
-cal_var <- function(w, Sigma){
-  return(t(w)%*%Sigma%*%w)
-}
 
-cal_return <- function(w, mu){
-  return(sum(w*mu))
-}
-
-cal_sharpe <- function(w, mu, Sigma){
-  return(cal_return(w, mu)/sqrt(cal_var(w, Sigma)))
-}
 
 
 
@@ -1303,12 +1293,28 @@ sd(returns_target_var)
 mean(returns_choice$return)
 
 # sharpe ratio
+cal_var <- function(w, Sigma){
+  return(t(w)%*%Sigma%*%w)
+}
+
+cal_return <- function(w, mu){
+  return(sum(w*mu))
+}
+
+cal_sharpe <- function(w, mu, Sigma){
+  return(cal_return(w, mu)/sqrt(cal_var(w, Sigma)))
+}
+
 sharpe_shorting <- rep(NA, 208)
 for(i in 1:208){
-  sharpe_shorting[i] <- cal_sharpe(w_target_var[i,], h$mu[i,], h$Sigma[i,,])
+  sharpe_shorting[i] <- cal_sharpe(1+w_target_var[i,], h$mu[i,], h$Sigma[i,,])
 }
 
 mean(sharpe_shorting)
+
+cum_return(rowSums(w_target_var*h$mu))
+
+
 ```
 
 ```{r}
@@ -1352,6 +1358,19 @@ cum_returns_alpha %>%
 
 # Sharpe ratios
 ```{r}
+cal_var <- function(w, Sigma){
+  return(t(w)%*%Sigma%*%w)
+}
+
+cal_return <- function(w, mu){
+  return(sum(w*mu))
+}
+
+cal_sharpe <- function(w, mu, Sigma){
+  return(cal_return(w, mu)/sqrt(cal_var(w, Sigma)))
+}
+
+
 sharpe_ratios <- array(NA, c(208, 7))
 sharpe_rp <- rep(NA, 208)
 for(i in 1:208){
@@ -1368,8 +1387,9 @@ mean(sharpe_EE) # EE
 colMeans(sharpe_ratios) # MV
 mean(sharpe_rp) # RP
 
+mean(returns_choice$return)/sd(returns_choice$return)*sqrt(12)
 
+j <- ((1+returns_choice$return/100)^12-1)*100
 
-
-
+mean(log(1+returns_choice$return/100))/sd(log(1+returns_choice$return/100))*sqrt(12)
 ```
