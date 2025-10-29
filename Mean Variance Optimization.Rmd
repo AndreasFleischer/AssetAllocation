@@ -22,6 +22,7 @@ library(lpSolve)
 library(xtable)
 library(Rsolnp)
 library(patchwork)
+library(ggmagnify)
 ```
 
 # Loading data
@@ -656,6 +657,8 @@ ggplot(df_frontier, aes(variance, Return)) +
 ### Plot of cumulative return
 #### min_var max_return
 ```{r}
+colors_pal <- colorRampPalette(c("#D55E00", "#0072B2"))(7)
+
 k <- n
 return_min_var[k]
 return_max_return[k]
@@ -695,14 +698,16 @@ cumulative_return_df %>%
 
 
 Breaks = c("Max_return", "Min_var", "Current_strategy")
-labels = c("Maximum Return", "Minimum Variance", "European equity")
-values = c("Max_return" = "#0072B2", "Min_var" = "#D55E00", "Current_strategy" = "#009E73")
+labels = c("Max Return", "GMV", "EE")
+values = c("Max_return" = colors_pal[7], "Min_var" = colors_pal[1], "Current_strategy" = "#009E73")
+
+
 
 cumulative_return_df %>% 
   pivot_longer(cols = -Date, names_to = "Portfolio", values_to = "Cumulative_return") %>% 
   mutate(Date = ym(Date)) %>% 
 ggplot(aes(x = Date, y = Cumulative_return, color = Portfolio)) +
-  geom_line(linewidth = 1) +
+  geom_line(linewidth = 0.8) +
   scale_color_manual(
       name = "Portfolio",
       breaks = Breaks,
@@ -720,12 +725,16 @@ ggplot(aes(x = Date, y = Cumulative_return, color = Portfolio)) +
   theme(
     plot.title = element_text(face = "bold", size = 16),
     plot.subtitle = element_text(size = 12),
-    legend.position = "right",
-    legend.title = element_text(face = "bold")
+    legend.position = c(0.02, 0.98),
+    legend.justification = c(0, 1),
+    legend.title = element_text(face = "bold"),
+    legend.background = element_rect(
+        fill = "white",
+        color = "grey80"
+      ),
+    axis.title.x = element_text(face = "bold"),
+    axis.title.y = element_text(face = "bold")
   )
-
-colorRampPalette(c("#D55E00", "#0072B2"))(7)
-
 ```
 
 #### Whole frontier
@@ -747,7 +756,7 @@ new_names <- c("Minimum variance", paste("point", 1:5), "Maximum return", "Europ
 colnames(cumulative_return_df) <- new_names
 
 values <- c(colorRampPalette(c("#D55E00", "#0072B2"))(7), "#009E73")
-labels <- c("GMV", paste("Point", 1:5, sep = " "), "Max Return", "EE")
+labels <- c("GMV", paste("Pf", 1:5, sep = " "), "Max Return", "EE")
 
 plot_data <- cumulative_return_df %>%
   mutate(Date = ym(factors_period$date)) %>%
@@ -759,8 +768,14 @@ plot_data <- cumulative_return_df %>%
   mutate(Portfolio = factor(Portfolio, levels = new_names))
 
 ggplot(plot_data, aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
-  geom_line(linewidth = 0.7) +
+  geom_line(linewidth = 0.45) +
+  geom_point(shape = NA) +
   scale_color_manual(values = values, labels = labels) +
+  guides(color = guide_legend(override.aes = list(
+    shape = 15,    # 15 is the code for a solid square
+    size = 4,      # Adjust size as needed
+    linetype = 0   # This hides the line
+  ))) +
   labs(
     title = "Cumulative Returns of Efficient Frontier Portfolios",
     #subtitle = "Performance of portfolios from Minimum Variance to Maximum Return",
@@ -770,10 +785,12 @@ ggplot(plot_data, aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
   ) +
   theme_minimal() +
   theme(
-    plot.title = element_text(face = "bold", size = 16),
+    plot.title = element_text(face = "bold", size = 13),
     plot.subtitle = element_text(size = 12),
     legend.position = "right",
-    legend.title = element_text(face = "bold")
+    legend.title = element_text(face = "bold"),
+    axis.title.x = element_text(face = "bold", size = 11),
+    axis.title.y = element_text(face = "bold", size = 11)
   )
 
 
@@ -790,32 +807,46 @@ which.min(sd(cumulative_return_internal[k,]))
 
 ```
 
+#### subplot
 ```{r}
-library(ggplot2)
-library(patchwork)
-library(lubridate)
-library(dplyr)
+# Install this package if you don't have it
+# install.packages("ggmagnify")
+library(ggmagnify)
 
-# (Assuming 'plot_data', 'values', and 'labels' are in your environment)
+# --- 1. Define the zoom area (THE RECTANGLE) ---
+# This selects all data between 2009 and the end of 2011
+aes_from <- aes(
+  xmin = as.Date("2009-09-01"), 
+  xmax = as.Date("2011-12-31"), 
+  ymin = -Inf, 
+  ymax = Inf
+)
 
-# 1. Create your main plot
-main_plot <- ggplot(plot_data, aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
-  geom_line(linewidth = 0.7) +
-  
-  # --- ADDED THIS RECTANGLE ---
-  # This highlights the area that the inset plot is zooming in on
-  annotate(
-    "rect",
-    xmin = as.Date("2007-09-01"),
-    xmax = as.Date("2012-08-01"),
-    ymin = -Inf,
-    ymax = Inf,
-    fill = "grey80", 
-    alpha = 0.4
-  ) +
-  # --- END OF ADDED RECTANGLE ---
-  
+# --- 2. Define the inset location (THE SUBPLOT) ---
+# Based on your plot, we'll place the box in the empty upper-left area.
+# Feel free to adjust these coordinates to make the box bigger or smaller.
+aes_to <- aes(
+  xmin = as.Date("2009-09-01"), # Left edge of the inset
+  xmax = as.Date("2015-01-01"), # Right edge of the inset
+  ymin = 150,                  # Bottom edge of the inset
+  ymax = 300                   # Top edge of the inset
+)
+
+# --- 3. Your Plot Code ---
+ggplot(plot_data, aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
+  geom_line(linewidth = 0.4) +
   scale_color_manual(values = values, labels = labels) +
+  
+  # --- 4. ADD THIS LAYER ---
+  geom_magnify(
+    from = aes_from,
+    to = aes_to,
+    shadow = TRUE,      # Adds the connecting lines
+    shape = "rect",
+    expand = 0
+  ) +
+  # --------------------
+
   labs(
     title = "Cumulative Returns of Efficient Frontier Portfolios",
     #subtitle = "Performance of portfolios from Minimum Variance to Maximum Return",
@@ -830,36 +861,8 @@ main_plot <- ggplot(plot_data, aes(x = Date, y = Cumulative_Return, color = Port
     legend.position = "right",
     legend.title = element_text(face = "bold")
   )
-
-# 2. Filter the data for the inset
-plot_data_inset <- plot_data %>%
-  filter(Date >= as.Date("2007-09-01") & Date <= as.Date("2012-08-01"))
-
-# 3. Create the inset plot from the filtered data
-inset_plot <- ggplot(plot_data_inset, aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
-  geom_line(linewidth = 0.7) +
-  scale_color_manual(values = values, labels = labels) +
-  theme_minimal() +
-  theme(
-    legend.position = "none",
-    axis.title = element_blank(),
-    axis.text = element_text(size = 8),
-    plot.title = element_blank(),
-    panel.border = element_rect(color = "grey50", fill = NA),
-    plot.background = element_rect(fill = "white", color = NA),
-    panel.background = element_rect(fill = "white", color = NA)
-  )
-
-# 4. Combine the plots
-main_plot +
-  inset_element(
-    inset_plot,
-    left = 0.05,
-    bottom = 0.50,
-    right = 0.55,
-    top = 0.95
-  )
 ```
+
 
 # Risk parity
 ```{r}
@@ -890,6 +893,8 @@ mean(return_rp)
 
 ## Plot af risk parity
 ```{r}
+colors_pal <- colorRampPalette(c("#D55E00", "#0072B2"))(7)
+
 k <- 1
 
 cumulative_return_rp <- (cumprod(1+return_rp/100)-1)*100
@@ -907,13 +912,13 @@ rp_df <- tibble(
 )
 
 Breaks = c("Risk_parity", "Portfolio_1", "Current_strategy")
-labels = c("Risk parity", "Portfolio 1", "European Equity")
-values = c("Risk_parity" = "#0072B2", "Portfolio_1" = "#D55E00", "Current_strategy" = "#009E73")
+labels = c("RP","PF 1", "EE")
+values = c("Risk_parity" = "#613F99", "Portfolio_1" = colors_pal[2], "Current_strategy" = "#009E73")
 
 rp_df %>% 
   pivot_longer(cols = -Date, names_to = "Portfolio", values_to = "Cumulative_Return") %>% 
   ggplot(aes(x = Date, y = Cumulative_Return, color = Portfolio)) +
-    geom_line(linewidth = 1) +
+    geom_line(linewidth = 0.7) +
     scale_color_manual(
         name = "Portfolio",
         breaks = Breaks,
@@ -921,22 +926,27 @@ rp_df %>%
         values =  values
       ) +
     labs(
-      title = "Cumulative Returns of Risk parity portfolio and Portfolio 1",
+      title = "Cumulative Returns of Risk parity and Portfolio 1",
       x = "Date",
       y = "Cumulative Return"
     ) +
     theme_minimal() +
     theme(
-      plot.title = element_text(face = "bold", size = 16),
-      plot.subtitle = element_text(size = 12),
-      legend.position = "right",
-      legend.title = element_text(face = "bold")
-    )
+    plot.title = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(size = 12),
+    legend.position = c(0.02, 0.98),
+    legend.justification = c(0, 1),
+    legend.title = element_text(face = "bold"),
+    legend.background = element_rect(
+        fill = "white",
+        color = "grey80"
+      ),
+    axis.title.x = element_text(face = "bold", size = 11),
+    axis.title.y = element_text(face = "bold", size = 11)
+  )
 
 # df <- tibble(date = factors_return_calc$date, return = return_internal[,1])
 # saveRDS(df, "returns_choice.rds")
-
-
 ```
 
 ```{r}
