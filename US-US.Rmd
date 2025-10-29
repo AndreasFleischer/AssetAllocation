@@ -882,9 +882,9 @@ ggplot(CPPI_plot_df, aes(x = Date, y = Value, color = Type)) +
   ) +
   scale_color_manual(
     values = c(
-      "European Equity" = "#009E73",     # blue
-      "Portfolio 1" = "#B1611D",         # red
-      "Initial Guarantee" = "#00B4CE"    # green
+      "European Equity" = "#009E73",     # green
+      "Portfolio 1" = "#B1611D",         # brown
+      "Initial Guarantee" = "#00B4CE"    # blue
     ),
     limits = c("European Equity", "Portfolio 1", "Initial Guarantee")  # order legend
   )
