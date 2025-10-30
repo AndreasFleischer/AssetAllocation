@@ -55,12 +55,13 @@ RF.EU <- read_rds("All_years_ready.rds")
 RF.EU <- select(RF.EU, c("TIME_PERIOD", "return"))
 
 factors <- read_rds("new_factors_all.rds")
+All_years <- readRDS("All_years_ready.rds")
+
+returns_choice <- readRDS("returns_choice.rds")
 ```
 
 # Prerequisit
 ```{r}
-All_years <- readRDS("All_years_ready.rds")
-
 EUR_USD <- exchange_rate %>%
   filter(as.Date(Date) >= as.Date("2004-08-01")) %>%
   select(Date, USD) %>%
@@ -369,34 +370,34 @@ plot_df <- as_tibble(map(guarantees, 1))
 plot_df <- cbind(tibble(date = All_years$TIME_PERIOD[36:124]), plot_df)
 colnames(plot_df) <- c("date", new_names)
 
-# plot_df %>%
-#   pivot_longer(cols = -date, names_to = "CPPI_strat", values_to = "Guarantee") %>%
-#   ggplot(aes(x = as.Date(date), y = Guarantee, color = CPPI_strat)) +
-#     geom_line(size = 1.1) +
-#     geom_point(size = 2, alpha = 0.7) +
-#     # geom_line(color = "#0072B2", size = 1.1) +
-#     # geom_point(color = "#0072B2", size = 2, alpha = 0.7) +
-#     # scale_color_manual(values = c("Portfolio.1" = "#0072B2", "European.Equity" = "#D55E00"),
-#     #                    breaks=c("Portfolio.1", "European.Equity"),
-#     #                    labels=c("Portfolio 1", "European Equity")) +
-#     scale_x_date(date_labels = "%Y", date_breaks = "2 years") +
-#     scale_y_continuous(labels = scales::number_format(accuracy = 0.01)) +
-#     labs(
-#       title = "Development of the Portfolio Guarantee Over Time",
-#       subtitle = "Guarantee level implied by CPPI floor mechanism",
-#       x = "Date",
-#       y = "Guarantee Value"
-#     ) +
-#   scale_color_viridis_d(option = "cividis") +
-#     theme_minimal(base_size = 13) +
-#     theme(
-#       plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
-#       plot.subtitle = element_text(size = 11, hjust = 0.5, color = "gray40"),
-#       axis.title = element_text(face = "bold"),
-#       panel.grid.minor = element_blank(),
-#       panel.grid.major.x = element_blank(),
-#       legend.position = "none"
-#     )
+plot_df %>%
+  pivot_longer(cols = -date, names_to = "CPPI_strat", values_to = "Guarantee") %>%
+  ggplot(aes(x = as.Date(date), y = Guarantee, color = CPPI_strat)) +
+    geom_line(size = 1.1) +
+    geom_point(size = 2, alpha = 0.7) +
+    # geom_line(color = "#0072B2", size = 1.1) +
+    # geom_point(color = "#0072B2", size = 2, alpha = 0.7) +
+    # scale_color_manual(values = c("Portfolio.1" = "#0072B2", "European.Equity" = "#D55E00"),
+    #                    breaks=c("Portfolio.1", "European.Equity"),
+    #                    labels=c("Portfolio 1", "European Equity")) +
+    scale_x_date(date_labels = "%Y", date_breaks = "2 years") +
+    scale_y_continuous(labels = scales::number_format(accuracy = 0.01)) +
+    labs(
+      title = "Development of the Portfolio Guarantee Over Time",
+      subtitle = "Guarantee level implied by CPPI floor mechanism",
+      x = "Date",
+      y = "Guarantee Value"
+    ) +
+  scale_color_viridis_d(option = "cividis") +
+    theme_minimal(base_size = 13) +
+    theme(
+      plot.title = element_text(face = "bold", size = 15, hjust = 0.5),
+      plot.subtitle = element_text(size = 11, hjust = 0.5, color = "gray40"),
+      axis.title = element_text(face = "bold"),
+      panel.grid.minor = element_blank(),
+      panel.grid.major.x = element_blank(),
+      legend.position = "none"
+    )
 
 ```
 
@@ -472,9 +473,6 @@ mean_of_mins_df <- min_df %>%
   ) %>%
   mutate(m = as.numeric(m)) %>%
   arrange(m)
-
-# Print the final aggregated dataframe
-print(mean_of_mins_df)
 
 # Shortfall and minimum guarantee
 df_cleaned <- short_fall_df %>% 
@@ -585,7 +583,7 @@ ggplot(df_cleaned, aes(x = m)) +
 
 ### Initial guarantee m = 2.5
 ```{r}
-# guarantees_m_2.5 <- readRDS("C:/Users/Nikolaj/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats_m_2.5")
+guarantees_m_2.5 <- readRDS("C:/Users/Nikolaj/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats_m_2.5")
 g_initial <- map(guarantees_m_2.5, "Guarantee_month")
 
 initial_guarantee <- map_dfc(g_initial, ~ .[1,])
@@ -724,10 +722,6 @@ ggplot(df_cleaned_quantile, aes(x = m)) +
 
 ### Effect of distance between target and trigger
 ```{r}
-returns_choice <- readRDS("returns_choice.rds")
-
-
-
 # m <- seq(1, 20, 0.5)
 m <- 2.5
 L_target <- 1.27
@@ -770,14 +764,12 @@ df_with_diff <- df %>%
   mutate(Difference = Trigger - Target)
 
 colnames(wealth_df) <- c("date", round(df_with_diff$Difference, 3))
-
-plot(colMeans(wealth_df[,-1]))
 ```
 
 
 ### target
 ```{r}
-guarantees_target <- map(guarantees_trigger_target, "Guarantees")
+guarantees_target <- map(guarantees_trigger_target, "Guarantee")
 
 guarantees_target_mean <- sapply(guarantees_target, mean)
 enframe(guarantees_target_mean, name = "name_str", value = "guarantees") %>%
@@ -806,7 +798,7 @@ enframe(guarantees_target_mean, name = "name_str", value = "guarantees") %>%
 
 ### Trigger
 ```{r}
-# guarantees_trigger_target <- readRDS("C:/Users/nikol/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats_m_2.5")
+# guarantees_trigger_target <- readRDS("C:/Users/nikolaj/OneDrive - University of Copenhagen/Aktuar/5. år/Asset allocation/Exam project/CPPI_strats_m_2.5")
 
 guarantees_trigger <- map(guarantees_trigger_target, "Guarantee")
 
@@ -909,8 +901,6 @@ as_tibble(map(guarantees_trigger_target, "Guarantee")[paste("2.5x1.27x", seq(1.3
 ```
 ##### Effect for larger values of target
 ```{r}
-returns_choice <- readRDS("returns_choice.rds")
-
 # m <- seq(1, 20, 0.5)
 m <- 2.5
 L_target <- 1.27
