@@ -62,6 +62,36 @@ returns_choice <- readRDS("returns_choice.rds")
 All_years <- readRDS("All_years_ready.rds") # The beta values
 ```
 
+
+# Prerequisit
+```{r}
+EUR_USD <- exchange_rate %>%
+  filter(as.Date(Date) >= as.Date("2004-08-01")) %>%
+  select(Date, USD) %>%
+  mutate(Date = as.Date(Date)) %>%
+  group_by(year = year(Date), month = month(Date)) %>%
+  slice_max(Date, n = 1) %>%   # last date in each month
+  ungroup() %>%
+  arrange(Date)
+EUR_USD <- EUR_USD[1:253,]
+EUR_USD$return <- lag(EUR_USD$USD)/EUR_USD$USD-1
+EUR_USD <- EUR_USD[2:253,]
+
+avg_vw_returns_euro <- size_mom_6_euro$subsets$data[[1]] %>% filter(date >= 200409)
+number_firms_euro <- size_mom_6_euro$subsets$data[[5]] %>% filter(date >= 200409)
+avg_market_cap_euro <- size_mom_6_euro$subsets$data[[6]] %>% filter(date >= 200409)
+
+total_values_euro <- number_firms_euro[,-1] * avg_market_cap_euro[,-1]
+total_market_value_euro <- rowSums(total_values_euro)
+
+avg_vw_returns_euro_eur <- ((1 + avg_vw_returns_euro[,-1]/100) * (1 + EUR_USD$return) - 1) * 100
+
+MKT_EU_EU <- data.frame(
+  date = number_firms_euro$date,  
+  Mkt  = rowSums(avg_vw_returns_euro_eur * total_values_euro) /
+         total_market_value_euro)
+```
+
 # CPPI
 ## CPPI Function
 ```{r}
@@ -234,8 +264,24 @@ A <- colMeans(short_fall)
 short_fall_df <- matrix(A[indices_m], nrow = nrow(indices_m), ncol = ncol(indices_m), byrow = FALSE)
 short_fall_df <- as.tibble(short_fall_df)
 
-colnames(short_fall_df) <- m
+guarantees_m_df <- matrix(K[indices_m], nrow = nrow(indices_m), ncol = ncol(indices_m), byrow = FALSE)
+guarantees_m_df <- as.tibble(guarantees_m_df)
 
+colnames(short_fall_df) <- m
+colnames(guarantees_m_df) <- m
+guarantees_m_plot_df <- guarantees_m_df %>% 
+  pivot_longer(cols = everything(), names_to = "m", values_to = "Guarantee") %>% 
+  group_by(m) %>% 
+  summarise("Mean_guarantee" = mean(Guarantee))
+
+# short_fall_df %>% 
+#   pivot_longer(cols = everything(), names_to = "m", values_to = "Short_fall_prop") %>%
+#   group_by(m) %>% 
+#   summarise(short_fall_prop_m = mean(Short_fall_prop)) %>% 
+#   arrange(as.numeric(m)) %>% 
+#   left_join(guarantees_m_plot_df, by = "m") %>% 
+#   ggplot(aes(as.numeric(m), short_fall_prop_m)) +
+#     geom_point() 
 
 # 1. Create the detailed 'min_df' dataframe
 min_df <- K %>%
@@ -324,6 +370,36 @@ initial_guarantee <- map_dfc(g_initial, ~ .[1,])
 
 target_vals <- seq(1.05, 2.05, 0.1)
 trigger_vals <- c("1.15", "1.3", "1.4", "1.95")
+
+initial_guarantee %>%
+  mutate(Period = row_number()) %>%
+  
+  pivot_longer(
+    cols = -Period,
+    names_to = "Name",
+    values_to = "Value"
+  ) %>%
+  
+  mutate(
+    Target = str_split(Name, "x", simplify = TRUE)[, 2],
+    Trigger = str_split(Name, "x", simplify = TRUE)[, 3]
+  ) %>%
+  
+  filter(Target %in% target_vals) %>% 
+  group_by(Target, Period) %>% 
+  summarise("Value" = mean(Value)) %>% 
+  ggplot(aes(x = Period, y = Value, color = Target)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2.5) +
+  labs(
+    title = "Initial Guarantee",
+    x = "Start date of TDF",
+    y = "Initial Guarantee",
+    color = "Target"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
 
 initial_guarantee %>%
   mutate(Period = row_number()) %>%
