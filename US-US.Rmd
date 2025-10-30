@@ -45,14 +45,14 @@ size_mom_25_euro <- download_french_data("25 European Portfolios Formed on Size 
 
 # Other
 # setwd("/Users/andreas/Documents/Uni/5. År/Asset Allocation (PUK)")
-exchange_rate <- read_csv("GitHub/AssetAllocation/Data AA/eurofxref-hist.csv") # Tror det er valutakurser
-# exchange_rate <- read_csv("Data AA/eurofxref-hist.csv") #
+# exchange_rate <- read_csv("GitHub/AssetAllocation/Data AA/eurofxref-hist.csv") # Tror det er valutakurser
+exchange_rate <- read_csv("Data AA/eurofxref-hist.csv") #
 # Yield_curve_1_year <- read_csv("Data AA/Yield curve 1 year.csv")
 # Yield_curve <- read_csv("Data AA/Yield curve full.csv")
 
-All_years <- readRDS("GitHub/AssetAllocation/All_years_ready.rds")
+# All_years <- readRDS("GitHub/AssetAllocation/All_years_ready.rds")
 
-# All_years <- readRDS("All_years_ready.rds")
+All_years <- readRDS("All_years_ready.rds")
 ```
 
 # US-US (MKT)
