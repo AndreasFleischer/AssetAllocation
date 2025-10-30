@@ -9,6 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, fig.width=10, fig.height=5)
 ```
 
+US-US skal køres først
+
 # Pakker
 ```{r}
 library(tidyverse)
@@ -19,7 +21,6 @@ library(lubridate)
 library(lpSolve)
 library(xtable)
 ```
-
 # Loading data
 ```{r message=FALSE}
 data_sets = get_french_data_list() # All the datasets in the package
