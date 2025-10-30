@@ -419,9 +419,6 @@ for(i in 1:n_internal){
 }
 
 
-
-
-
 ```
 
 
@@ -958,7 +955,7 @@ rp_df %>%
 
 ```{r}
 returns_all <- cbind(
-  factors$date,
+  factors_period$date,
   return_min_var,
   return_internal,
   return_max_return
@@ -1002,7 +999,7 @@ summary_table <- rbind(summary_table, tibble(
 
 returns_choice <- tibble(
   date = returns_all$date,
-  "return" = returns_all$`Portfolio  2`
+  "return" = returns_all$`Portfolio  1`
 )
 
 ```
@@ -1358,6 +1355,8 @@ cum_returns_alpha %>%
 
 # Sharpe ratios
 ```{r}
+returns_choice <- readRDS("returns_choice.rds")
+
 cal_var <- function(w, Sigma){
   return(t(w)%*%Sigma%*%w)
 }
